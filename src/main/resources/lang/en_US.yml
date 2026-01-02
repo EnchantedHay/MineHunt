@@ -1,0 +1,133 @@
+# MineHunt - English (US)
+# This file contains all actively used language keys (61 total).
+
+auto:
+  threshold: "&aPlayer threshold reached! Auto-starting in &b{0}s"
+
+autoassign:
+  assigned: "&aYou have been assigned to team: &b{0}"
+
+cmd:
+  status: "&7State:&b {0} &7| Online:&b {1} &7| Participants:&b {2} &7| TeamLock:&b {3} &7| Resetting:&b {4}"
+  join:
+    usage: "&eUsage: /minehunt join <runner|hunter|spectator>"
+    spectator:
+      running: "&aYou are now a spectator of this round."
+      after_clear: "&aYou will spectate this round once it begins."
+      ok: "&aYou are in spectator mode."
+    locked: "&cTeams are currently locked."
+    ok: "&aYou joined team: &b{0}"
+  lockroles:
+    usage: "&eUsage: /minehunt lockroles <on|off>"
+    on: "&aRoles are now locked."
+    off: "&aRoles are now unlocked."
+  setlobby:
+    usage: "&eUsage: /minehunt setlobby <worldName>"
+    no_world: "&cWorld not found: &f{0}"
+    ok: "&aLobby world temporarily set to &b{0}&7."
+  goto:
+    usage: "&eUsage: /minehunt goto <lobby|game|nether|end|world>"
+    no_world: "&cWorld not found: &f{0}"
+    ok: "&aTeleported to world: &b{0}"
+  help:
+    header: "&aMineHunt Commands:"
+    start: "&e{0} &7- Start the game"
+    forcestart: "&e{0} &7- Force start immediately"
+    end: "&e{0} &7- End the round"
+    status: "&e{0} &7- Show current status"
+    join: "&e{0} &7- Join a team or become spectator"
+    lock: "&e{0} &7- Lock or unlock roles"
+    lobby: "&e{0} &7- Set temporary lobby world"
+    goto: "&e{0} &7- Teleport to a specific world"
+    wait: "&e{0} &7- Extend countdown for 90 seconds"
+  wait:
+    not_countdown: "&cNot currently in countdown."
+    ok: "&aCountdown extended!"
+
+compass:
+  no_last: "&7No runners found in your world or recorded last position."
+  locked_nearest: "&aLocked onto nearest runner: &b{0} &7({1})"
+  cross_world_last: "&7No same-dimension runners. Tracking last known location of &b{0}&7."
+  dist:
+    very_close: "&cVery Close"
+    close: "&eClose"
+    far: "&aFar"
+    very_far: "&7Very Far"
+
+enderdragon:
+  dead: "&dEnder Dragon defeated! Runners win!"
+
+forcestart:
+  begun: "&aRound forcibly started!"
+
+game:
+  already: "&eA round is already running or starting."
+  resetting: "&eWorld is currently resetting. Please wait..."
+  start:
+    invalid: "&cCannot start yet – check player count and teams!"
+  starting: "&aRound starting in &b{0}s!"
+  countdown:
+    countdown: "&7Countdown: &b{0}s"
+    cancelled: "&eCountdown cancelled!"
+    extended: "&eAdmin extended the wait time by &b{0}s&e! (Remaining: &b{1}s&e)"
+  begun: "&aThe game has begun! Good luck!"
+  ended: "&eRound ended. Returning to lobby soon."
+  post:
+    reset:
+      schedule: "&eResetting map and returning to lobby in &b{0}s..."
+  reset:
+    done: "&aWorld reset completed! Back to lobby."
+  rejoin:
+    grace: "&aWelcome back! You have &b{0}s &aremaining on your grace period."
+
+guard:
+  no:
+    perm: "&cYou don't have permission."
+  only:
+    player: "&cThis command can only be used by players."
+  bad:
+    state: "&eInvalid state: &b{0}"
+  resetting: "&eWorld is resetting, please try again later."
+
+hunter:
+  all:
+    dead: "&aAll hunters eliminated! Runners win!"
+
+menu:
+  title: "&aMineHunt Menu"
+  item: "&eGame Menu"
+  disabled: "&cMenu is not available right now."
+  switched: "&aRole switched to &b{0}"
+  runner: "&aJoin as Runner"
+  hunter: "&cJoin as Hunter"
+  spectator: "&7Join as Spectator"
+
+respawn:
+  hunter:
+    ok: "&aYou have respawned and received your compass again!"
+  runner:
+    spectator: "&eYou are eliminated and now spectating."
+
+runner:
+  stronghold: "&c[!] &a{0} &chas reached a Stronghold! &bCoordinates: &f[&bx: {1}&f, &by: {2}&f, &bz: {3}&f]"
+  all:
+    dead: "&cAll runners eliminated! Hunters win!"
+
+
+rules:
+  announce:
+    - "&e&l⚠ Custom Game Rules ⚠"
+    - "&7- &c  Bed/Anchor explosion damage &f-25% &7(Nerfed)"
+    - "&7- &c  Lava contact damage &f-40% &7(Nerfed)"
+    - "&7- &b  World Border &fRadius 5760 blocks"
+    - "&7- &6  Piglin Bartering &fHigher chance for Ender Pearls &7"
+    - "&eGood luck & Have fun!"
+
+spec:
+  rejoin:
+    spectator: "&eYou are spectating this round."
+  quit:
+    runner: "&eRunner &f{0} &ehas left (grace timer started)."
+    hunter: "&eHunter &f{0} &ehas left (grace timer started)."
+  runner:
+    death: "&cRunner &f{0} &cwas eliminated and now spectating."

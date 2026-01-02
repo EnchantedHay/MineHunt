@@ -1,0 +1,16 @@
+name: MineHunt
+main: top.chancelethay.minehunt.MineHuntPlugin
+version: 1.0.0
+api-version: '1.21'
+author: chancelethay
+commands:
+  minehunt:
+    description: MineHunt main command
+    usage: /minehunt <join|leave|role|start|stop|status|setlobby>
+    aliases: [mh]
+permissions:
+  minehunt.play:
+    default: true
+  minehunt.admin:
+    default: op
+softdepend: ["PlaceholderAPI"]

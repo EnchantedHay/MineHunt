@@ -1,0 +1,150 @@
+auto:
+  threshold: "&a人数已达标！将在 &b{0}秒 &a后自动开始。"
+
+autoassign:
+  assigned: "&a你已被自动分配到队伍：&b{0}"
+
+cmd:
+  status: "&7状态:&b {0} &7| 在线:&b {1} &7| 参赛:&b {2} &7| 锁定:&b {3} &7| 重置中:&b {4}"
+  join:
+    usage: "&e用法: /minehunt join <runner|hunter|spectator>"
+    spectator:
+      running: "&a你现在是本局游戏的旁观者。"
+      after_clear: "&a游戏开始后你将旁观本局。"
+      ok: "&a你处于旁观模式。"
+    locked: "&c队伍当前已锁定。"
+    ok: "&a你加入了队伍：&b{0}"
+  lockroles:
+    usage: "&e用法: /minehunt lockroles <on|off>"
+    on: "&a队伍已锁定。"
+    off: "&a队伍已解锁。"
+  setlobby:
+    usage: "&e用法: /minehunt setlobby <世界名>"
+    no_world: "&c未找到世界：&f{0}"
+    ok: "&a大厅世界已临时设为 &b{0}&7。"
+  goto:
+    usage: "&e用法: /minehunt goto <lobby|game|nether|end|world>"
+    no_world: "&c未找到世界：&f{0}"
+    ok: "&a已传送至世界：&b{0}"
+  help:
+    header: "&aMineHunt 指令列表："
+    start: "&e{0} &7- 开始游戏"
+    forcestart: "&e{0} &7- 强制立即开始"
+    end: "&e{0} &7- 结束本局"
+    status: "&e{0} &7- 查看当前状态"
+    join: "&e{0} &7- 加入队伍或旁观"
+    lock: "&e{0} &7- 锁定或解锁队伍"
+    lobby: "&e{0} &7- 设置临时大厅世界"
+    goto: "&e{0} &7- 传送至指定世界"
+    wait: "&e{0} &7- 延长倒计时90秒"
+  wait:
+    not_countdown: "&c当前不在倒计时阶段，无法延长。"
+    ok: "&a成功延长倒计时！"
+
+vote:
+  already_active: "&c当前已经有一个正在进行的投票。"
+  not_active: "&c当前没有正在进行的投票。"
+  not_participant: "&c只有参赛者（猎人/速通者）才能投票。"
+  already_voted: "&c你已经投过票了。"
+  started:
+    - "&e========================================"
+    - "&e玩家 &f{0} &e发起了结束游戏投票。"
+    - "&e需要所有存活参赛者同意。"
+    - "&e========================================"
+  # 注意：这里我们将在代码中通过 Component 构建点击按钮，
+  # 所以不需要在这里写按钮的文本，但需要写进度的文本。
+  progress: "&e当前进度: &a{0} &e/ &a{1} &7({2} 已同意)"
+  success: "&a所有玩家均同意！游戏将在 5秒后 结束。"
+  failed: "&c投票失败（有人拒绝或超时）。"
+  refused: "&c{0} 拒绝了投票，流程结束。"
+  button:
+    text: "&a[点击这里同意结束]"
+    hover: "&7点击投赞成票"
+
+
+compass:
+  no_last: "&7当前世界未发现速通者，也无最后已知位置记录。"
+  locked_nearest: "&a已锁定最近的速通者：&b{0} &7(距离：{1})"
+  cross_world_last: "&7当前维度无速通者。正在追踪 &b{0} &7的最后已知位置。"
+  dist:
+    very_close: "&c很近"
+    close: "&e较近"
+    far: "&a较远"
+    very_far: "&7很远"
+
+enderdragon:
+  dead: "&d末影龙已被击败！速通者胜利！"
+
+forcestart:
+  begun: "&a管理员强制开始了本局游戏！"
+
+game:
+  already: "&e游戏正在进行或正在启动中。"
+  resetting: "&e地图正在重置中，请稍候..."
+  start:
+    invalid: "&c暂时无法开始 —— 请检查人数和队伍！"
+  starting: "&a游戏将在 &b{0}秒 &a后开始！"
+  countdown:
+    countdown: "&7倒计时：&b{0}秒"
+    cancelled: "&e倒计时取消！"
+    extended: "&e管理员延长了等待时间，倒计时增加 &b{0}秒&e！(剩余 &b{1}秒&e)"
+  begun: "&a游戏开始！祝好运！"
+  ended: "&e回合结束。即将返回大厅。"
+  post:
+    reset:
+      schedule: "&e将在 &b{0}秒 &e后重置地图并返回大厅..."
+  reset:
+    done: "&a世界重置完成！欢迎回到大厅。"
+  rejoin:
+    grace: "&a欢迎回来！你的掉线保护时间还剩 &b{0}秒&a。"
+
+guard:
+  no:
+    perm: "&c你没有权限执行此操作。"
+  only:
+    player: "&c此指令仅限玩家使用。"
+  bad:
+    state: "&e无效状态：&b{0}"
+  resetting: "&e世界正在重置，请稍后再试。"
+
+hunter:
+  all:
+    dead: "&a所有猎人已出局！速通者胜利！"
+
+menu:
+  title: "&aMineHunt 菜单"
+  item: "&e游戏菜单"
+  disabled: "&c菜单当前不可用。"
+  switched: "&a角色已切换为 &b{0}"
+  runner: "&a加入速通者"
+  hunter: "&c加入猎人"
+  spectator: "&7加入旁观"
+
+respawn:
+  hunter:
+    ok: "&a你已重生并重新获得了指南针！"
+  runner:
+    spectator: "&e你已被淘汰，现在进行旁观。"
+
+runner:
+  stronghold: "&c[!] &a{0}&c已抵达要塞！&b坐标位于: &f[&bx: {1}&f, &by: {2}&f, &bz: {3}&f]"
+  all:
+    dead: "&c所有速通者已出局！猎人胜利！"
+
+rules:
+  announce:
+    - "&e&l⚠ 特色规则说明 ⚠"
+    - "&7- &c  床/重生锚爆炸伤害 &f降低70% &7"
+    - "&7- &c  岩浆直接接触伤害 &f降低30% &7"
+    - "&7- &b  世界边界 &f半径为 5760格 &7"
+    - "&7- &6  猪灵以物易物 &f获得末影珍珠的概率上调 &7"
+    - "&e祝游戏愉快！"
+
+spec:
+  rejoin:
+    spectator: "&e你正在旁观本局游戏。"
+  quit:
+    runner: "&e速通者 &f{0} &e已离开 (掉线保护计时开始)。"
+    hunter: "&e猎人 &f{0} &e已离开 (掉线保护计时开始)。"
+  runner:
+    death: "&c速通者 &f{0} &c已被淘汰，现转为旁观。"
