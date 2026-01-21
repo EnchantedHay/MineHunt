@@ -2,7 +2,6 @@ package top.chancelethay.minehunt.utils;
 
 /**
  * Settings
- *
  * 插件配置的不可变快照对象。
  * 包含所有从 utils.yml 读取的游戏参数。
  */
@@ -37,6 +36,8 @@ public final class Settings {
     public final boolean useExternalChat;
     public final boolean useExternalTab;
 
+    public final boolean disablePrivateChat;
+
     public Settings(
             String lobbyWorld,
             String gameWorld,
@@ -56,7 +57,8 @@ public final class Settings {
             int scatterMaxTries,
             int worldPreloadRadiusBlocks,
             boolean useExternalChat,
-            boolean useExternalTab
+            boolean useExternalTab,
+            boolean disablePrivateChat
     ) {
         this.lobbyWorld = lobbyWorld;
         this.gameWorld = gameWorld;
@@ -81,5 +83,7 @@ public final class Settings {
         this.worldPreloadRadiusBlocks = worldPreloadRadiusBlocks;
         this.useExternalChat = useExternalChat;
         this.useExternalTab = useExternalTab;
+
+        this.disablePrivateChat = disablePrivateChat;
     }
 }

@@ -1,29 +1,19 @@
 package top.chancelethay.minehunt.game.manager;
 
 import org.bukkit.*;
-import org.bukkit.advancement.Advancement;
-import org.bukkit.advancement.AdvancementProgress;
+
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import top.chancelethay.minehunt.game.GameState;
-import top.chancelethay.minehunt.game.PlayerRole;
-import top.chancelethay.minehunt.game.WinReason;
-import top.chancelethay.minehunt.game.listener.BoardListener;
-import top.chancelethay.minehunt.game.listener.TrackingListener;
-import top.chancelethay.minehunt.utils.MessageService;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.utils.Tasks;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
 /**
  * 散点服务
- *
  * 负责游戏开始时为玩家计算和分配随机出生点。
  * 采用异步区块加载策略，防止大量坐标搜索导致主线程卡顿。
  */
@@ -157,6 +147,21 @@ public final class SpawnScatterManager {
         });
     }
 
+    public Location findSafeSpotNearSync(Location center, int radius) {
+        if (center == null || center.getWorld() == null) return center;
+        World w = center.getWorld();
+
+        for (int i = 0; i < 10; i++) {
+            int dx = java.util.concurrent.ThreadLocalRandom.current().nextInt(-radius, radius + 1);
+            int dz = java.util.concurrent.ThreadLocalRandom.current().nextInt(-radius, radius + 1);
+
+            Location cand = toTopSafe(w, center.getBlockX() + dx, center.getBlockZ() + dz);
+            if (cand != null) return cand;
+        }
+
+        return center;
+    }
+
     // =================================================================================
     //  Hunter 异步处理
     // =================================================================================
@@ -268,7 +273,7 @@ public final class SpawnScatterManager {
     private void trySetWorldSpawn(World world, Location loc) {
         try {
             world.setSpawnLocation(loc);
-            world.setGameRule(GameRule.SPAWN_RADIUS, 0);
+            world.setGameRule(GameRules.RESPAWN_RADIUS, 0);
         } catch (Throwable ignored) {}
     }
 

@@ -7,41 +7,35 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.weather.WeatherChangeEvent;
 
-import top.chancelethay.minehunt.game.manager.SpawnScatterManager;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.manager.GameManager;
 import top.chancelethay.minehunt.game.manager.PlayerRoleManager;
-import top.chancelethay.minehunt.utils.MessageService;
 import top.chancelethay.minehunt.utils.Tasks;
 
 import java.util.UUID;
 
 /**
  * 大厅服务
- *
  * 负责大厅世界的规则保护、玩家管理以及自动队伍分配。
  */
 public final class LobbyListener implements Listener {
 
-    private volatile Settings settings;
+    private Settings settings;
     private final GameManager gameManager;
-    private final MessageService msg;
     private final PlayerRoleManager playerRoleManager;
     private final Tasks tasks;
 
-    private volatile boolean autoAssignEnabled;
+    private boolean autoAssignEnabled;
 
     private World cachedLobbyWorld;
 
     public LobbyListener(Settings settings,
-                         MessageService msg,
                          GameManager gameManager,
                          PlayerRoleManager playerRoleManager,
                          Tasks tasks) {
         this.settings = settings;
-        this.msg = msg;
         this.gameManager = gameManager;
         this.playerRoleManager = playerRoleManager;
         this.tasks = tasks;
@@ -79,19 +73,19 @@ public final class LobbyListener implements Listener {
 
     private void applyLobbyRules(World w) {
         try {
-            w.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
+            w.setGameRule(GameRules.ADVANCE_TIME, false);
             w.setTime(6000L);
 
-            w.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
+            w.setGameRule(GameRules.ADVANCE_WEATHER, false);
             w.setStorm(false);
             w.setThundering(false);
 
-            w.setGameRule(GameRule.DO_MOB_SPAWNING, false);
-            w.setGameRule(GameRule.DO_TRADER_SPAWNING, false);
-            w.setGameRule(GameRule.DO_PATROL_SPAWNING, false);
+            w.setGameRule(GameRules.SPAWN_MOBS, false);
+            w.setGameRule(GameRules.SPAWN_WANDERING_TRADERS, false);
+            w.setGameRule(GameRules.SPAWN_PATROLS, false);
 
-            w.setGameRule(GameRule.DO_FIRE_TICK, false);
-            w.setGameRule(GameRule.MOB_GRIEFING, false);
+            w.setGameRule(GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0);
+            w.setGameRule(GameRules.MOB_GRIEFING, false);
         } catch (Throwable ignored) {}
     }
 
@@ -108,7 +102,6 @@ public final class LobbyListener implements Listener {
         if (e.getCause() == EntityDamageEvent.DamageCause.VOID) {
             e.setCancelled(true);
             teleportToLobbySpawn(p);
-            return;
         }
     }
 
@@ -167,30 +160,29 @@ public final class LobbyListener implements Listener {
      * 自动分配逻辑
      * ======================================================================================== */
 
-    public PlayerRole assignOnJoin(UUID playerId) {
-        if (playerId == null) return null;
+    public void assignOnJoin(UUID playerId) {
+        if (playerId == null) return;
 
         Player p = Bukkit.getPlayer(playerId);
-        if (p == null) return null;
+        if (p == null) return;
 
         GameState st = gameManager.getState();
         if (st != GameState.LOBBY && st != GameState.COUNTDOWN) {
-            return null;
+            return;
         }
 
         PlayerRole current = playerRoleManager.getRole(playerId);
         if (current == PlayerRole.SPECTATOR) {
-            return null;
+            return;
         }
 
         if (!autoAssignEnabled) {
             playerRoleManager.setRole(p, PlayerRole.LOBBY);
-            return null;
+            return;
         }
 
         PlayerRole balanced = playerRoleManager.pickBalancedRole();
         playerRoleManager.setRole(p, balanced);
-        return balanced;
     }
 
     public void autoAssignAllLobbyPlayers() {
@@ -201,16 +193,16 @@ public final class LobbyListener implements Listener {
             PlayerRole cur = playerRoleManager.getRole(id);
 
             if (cur == PlayerRole.SPECTATOR) {
-                playerRoleManager.setRole(p, PlayerRole.SPECTATOR, false, false);
+                playerRoleManager.setRole(p, PlayerRole.SPECTATOR, false);
                 continue;
             }
 
             if (cur != PlayerRole.RUNNER && cur != PlayerRole.HUNTER) {
                 if (autoAssignEnabled) {
                     PlayerRole assigned = playerRoleManager.pickBalancedRole();
-                    playerRoleManager.setRole(p, assigned, false, false);
+                    playerRoleManager.setRole(p, assigned, false);
                 } else {
-                    playerRoleManager.setRole(p, PlayerRole.LOBBY, false, false);
+                    playerRoleManager.setRole(p, PlayerRole.LOBBY, false);
                 }
             }
         }

@@ -5,22 +5,20 @@ import org.bukkit.World;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
-import top.chancelethay.minehunt.game.manager.SpawnScatterManager;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.WinReason;
-import top.chancelethay.minehunt.game.listener.LobbyListener;
 import top.chancelethay.minehunt.game.manager.GameManager;
 import top.chancelethay.minehunt.game.manager.GameWorldManager;
 import top.chancelethay.minehunt.game.manager.PlayerRoleManager;
 import top.chancelethay.minehunt.utils.MessageService;
 
 import java.util.*;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * 命令处理器
- *
  * 负责解析和执行玩家或控制台输入的 /minehunt 指令。
  * 提供权限检查、参数补全和指令分发功能。
  */
@@ -32,7 +30,6 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
     private final GameWorldManager worlds;
     private final PlayerRoleManager playerRoleManager;
     private final CommandGuard guard;
-    private final LobbyListener lobby;
 
     private static final List<String> SUB_COMMANDS_PLAYER = List.of("help", "join");
     private static final List<String> SUB_COMMANDS_ADMIN = List.of(
@@ -48,30 +45,23 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
                            GameManager game,
                            GameWorldManager worlds,
                            PlayerRoleManager playerRoleManager,
-                           CommandGuard guard,
-                           LobbyListener lobby) {
+                           CommandGuard guard) {
         this.msg = msg;
         this.settings = settings;
         this.game = game;
         this.worlds = worlds;
         this.playerRoleManager = playerRoleManager;
         this.guard = guard;
-        this.lobby = lobby;
     }
 
     public void setSettings(Settings s) { this.settings = s; }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] rawArgs) {
-        final String sub = (rawArgs.length == 0 ? "help" : rawArgs[0].toLowerCase(Locale.ROOT));
-        final String[] args = rawArgs;
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
+        final String sub = (args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT));
 
         switch (sub) {
             case "help":
-            default: {
-                sendHelp(sender, label);
-                return true;
-            }
 
             case "start": {
                 if (!guard.requireAdmin(sender)) return true;
@@ -150,6 +140,13 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
                 GameState st = game.getState();
 
                 if (wantSpectator) {
+                    if (game.getState() == GameState.RUNNING && playerRoleManager.isParticipant(p.getUniqueId())) {
+                        PlayerRole currentRole = playerRoleManager.getRole(p.getUniqueId());
+                        playerRoleManager.eliminateAndCheckEnd(p.getUniqueId(), currentRole, p, p.getName() + "已放弃游戏 转为旁观者");
+                        msg.send(p, "cmd.join.spectator.running");
+                        return true;
+                    }
+
                     playerRoleManager.setRole(p, PlayerRole.SPECTATOR);
 
                     if (st == GameState.LOBBY || st == GameState.COUNTDOWN) {
@@ -165,8 +162,14 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
                 }
 
                 if (game.isRolesLocked()) {
-                    msg.send(p, "cmd.join.locked");
-                    return true;
+                    boolean canLateJoin = (game.getState() == GameState.RUNNING)
+                            && game.isLateJoinAllowed()
+                            && !playerRoleManager.isParticipant(p.getUniqueId());
+
+                    if (!canLateJoin) {
+                        msg.send(p, "cmd.join.locked");
+                        return true;
+                    }
                 }
 
                 if (requestedRole == PlayerRole.HUNTER || requestedRole == PlayerRole.RUNNER) {
@@ -236,24 +239,13 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
 
                 String which = args[1].toLowerCase(Locale.ROOT);
                 String base = settings.gameWorld;
-                World target;
-                switch (which) {
-                    case "lobby":
-                        target = Bukkit.getWorld(settings.lobbyWorld);
-                        break;
-                    case "game":
-                        target = Bukkit.getWorld(base);
-                        break;
-                    case "nether":
-                        target = Bukkit.getWorld(base + "_nether");
-                        break;
-                    case "end":
-                        target = Bukkit.getWorld(base + "_the_end");
-                        break;
-                    default:
-                        target = Bukkit.getWorld(which);
-                        break;
-                }
+                World target = switch (which) {
+                    case "lobby" -> Bukkit.getWorld(settings.lobbyWorld);
+                    case "game" -> Bukkit.getWorld(base);
+                    case "nether" -> Bukkit.getWorld(base + "_nether");
+                    case "end" -> Bukkit.getWorld(base + "_the_end");
+                    default -> Bukkit.getWorld(which);
+                };
 
                 if (target == null) {
                     msg.send(p, "cmd.goto.no_world", which);
@@ -279,6 +271,11 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
                 msg.send(sender, "cmd.wait.ok");
                 return true;
             }
+
+            default: {
+                sendHelp(sender, label);
+                return true;
+            }
         }
     }
 
@@ -296,7 +293,7 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] args) {
         boolean isAdmin = sender.hasPermission("minehunt.admin");
         List<String> result = new ArrayList<>();
 

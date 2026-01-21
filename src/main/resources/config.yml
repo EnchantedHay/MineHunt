@@ -1,11 +1,11 @@
-# 大厅与游戏世界名
 lobby:
   world: "world"
+
 game:
   world: "minehunt_game"
-  disconnectGraceSeconds: 90
+  disconnectGraceSeconds: 120
+  disablePrivateChat: true
 
-# 自动开始 / 锁队 / 倒计时
 auto:
   minPlayers: 2
   countdownSeconds: 90
@@ -15,7 +15,6 @@ reset:
   blockStartWhileResetting: true
   randomSeedEachRound: true
 
-# 开局散点与出生
 scatter:
   runnerRingRadius: 180
   runnerRingJitter: 24

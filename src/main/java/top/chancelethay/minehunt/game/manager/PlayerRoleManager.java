@@ -20,7 +20,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 玩家角色管理器
- *
  * 负责维护游戏中所有玩家的身份状态、位置记忆以及掉线宽限期。
  * 包含处理角色切换、属性重置、位置传送以及胜负条件检查的核心逻辑。
  */
@@ -29,6 +28,7 @@ public final class PlayerRoleManager {
     private final GameManager gameManager;
     private final BoardListener boardListener;
     private final TrackingListener trackingListener;
+    private SpawnScatterManager spawnScatterManager;
     private final Settings settings;
     private final MessageService msg;
     private final Tasks tasks;
@@ -56,7 +56,7 @@ public final class PlayerRoleManager {
 
     // 位置记忆数据
     private final Map<UUID, Location> lastGameLocation = new ConcurrentHashMap<>();
-    private volatile Location globalEndSpectateLocation = null;
+    private Location globalEndSpectateLocation = null;
 
     public PlayerRoleManager(
             GameManager gameManager,
@@ -262,11 +262,9 @@ public final class PlayerRoleManager {
     public void setRole(Player p, PlayerRole newRole) {
         setRole(p, newRole, false, true, false);
     }
-    public void setRole(Player p, PlayerRole newRole, boolean isIngameRespawn) {
-        setRole(p, newRole, isIngameRespawn, true, false);
-    }
-    public void setRole(Player p, PlayerRole newRole, boolean isIngameRespawn, boolean updateSidebar) {
-        setRole(p, newRole, isIngameRespawn, updateSidebar, false);
+
+    public void setRole(Player p, PlayerRole newRole, boolean updateSidebar) {
+        setRole(p, newRole, false, updateSidebar, false);
     }
 
     /**
@@ -307,6 +305,12 @@ public final class PlayerRoleManager {
         switch (newRole) {
             case HUNTER -> {
                 if (st == GameState.RUNNING) {
+                    boolean isFreshJoin = !isRejoining && !isIngameRespawn && !lastGameLocation.containsKey(p.getUniqueId());
+
+                    if (isFreshJoin) {
+                        msg.broadcast("game.broadcast.late_join_hunter", p.getName());
+                    }
+
                     Location target = isIngameRespawn ? calcRespawnLocation(p) : calcResumeLocation(p);
                     safeTeleport(p, target);
 
@@ -315,7 +319,8 @@ public final class PlayerRoleManager {
                     if (!isRejoining) {
                             resetPlayerVitals(p, isIngameRespawn);
                     }
-                    ensureHunterCompass(p);
+
+                    ensureHunterCompass(p, false);
                 } else {
                     safeTeleport(p, calcLobbySpawn());
                     safeSetGameMode(p, GameMode.ADVENTURE);
@@ -324,6 +329,28 @@ public final class PlayerRoleManager {
             }
             case RUNNER -> {
                 if (st == GameState.RUNNING) {
+                    PlayerRole currentRole = getRole(p.getUniqueId());
+                    boolean isFreshJoin = !isRejoining
+                            && !lastGameLocation.containsKey(p.getUniqueId())
+                            && currentRole != PlayerRole.RUNNER;
+                    if (isFreshJoin) {
+                        msg.broadcast("game.broadcast.late_join_runner", p.getName());
+                        Location dropLoc = calcLateJoinRunnerLocation(p);
+                        safeTeleport(p, dropLoc);
+
+                        msg.send(p, "&a你已中途加入游戏！正在空投至队友附近...");
+
+                        p.setInvulnerable(true);
+                        tasks.later(() -> {
+                            if (p.isOnline()) {
+                                p.setInvulnerable(false);
+                                msg.send(p, "&c无敌时间已结束！");
+                            }
+                        }, 200L);
+                    } else {
+                        safeTeleport(p, calcResumeLocation(p));
+                    }
+
                     safeTeleport(p, calcResumeLocation(p));
                     safeSetGameMode(p, GameMode.SURVIVAL);
 
@@ -337,7 +364,6 @@ public final class PlayerRoleManager {
                 }
             }
             case SPECTATOR -> {
-                // ... (Spectator logic remains largely the same, usually reset is fine here, or you can conditionally skip)
                 if (st == GameState.LOBBY || st == GameState.COUNTDOWN) {
                     safeTeleport(p, calcLobbySpawn());
                     safeSetGameMode(p, GameMode.ADVENTURE);
@@ -421,59 +447,6 @@ public final class PlayerRoleManager {
         }
     }
 
-    private void applyLogicalStateForRole(Player p, PlayerRole newRole, boolean isIngameRespawn) {
-        GameState st = gameManager.getState();
-        switch (newRole) {
-            case HUNTER -> {
-                if (st == GameState.RUNNING) {
-                    Location target = isIngameRespawn ? calcRespawnLocation(p) : calcResumeLocation(p);
-                    safeTeleport(p, target);
-
-                    safeSetGameMode(p, GameMode.SURVIVAL);
-                    resetPlayerVitals(p);
-                    ensureHunterCompass(p);
-                } else {
-                    safeTeleport(p, calcLobbySpawn());
-                    safeSetGameMode(p, GameMode.ADVENTURE);
-                    resetPlayerVitals(p);
-                }
-            }
-            case RUNNER -> {
-                if (st == GameState.RUNNING) {
-                    safeTeleport(p, calcResumeLocation(p));
-                    safeSetGameMode(p, GameMode.SURVIVAL);
-                    resetPlayerVitals(p);
-                } else {
-                    safeTeleport(p, calcLobbySpawn());
-                    safeSetGameMode(p, GameMode.ADVENTURE);
-                    resetPlayerVitals(p);
-                }
-            }
-            case SPECTATOR -> {
-                if (st == GameState.LOBBY || st == GameState.COUNTDOWN) {
-                    safeTeleport(p, calcLobbySpawn());
-                    safeSetGameMode(p, GameMode.ADVENTURE);
-                    resetPlayerVitals(p);
-                } else {
-                    safeSetGameMode(p, GameMode.SPECTATOR);
-                    if (globalEndSpectateLocation != null) {
-                        safeTeleport(p, globalEndSpectateLocation);
-                    } else {
-                        if (!isGameWorld(p.getWorld())) {
-                            safeTeleport(p, calcResumeLocation(p));
-                        }
-                    }
-                }
-                try { if (trackingListener != null) trackingListener.onBecameSpectator(p.getUniqueId()); } catch (Throwable ignored) {}
-            }
-            case LOBBY -> {
-                safeTeleport(p, calcLobbySpawn());
-                safeSetGameMode(p, GameMode.ADVENTURE);
-                resetPlayerVitals(p);
-            }
-        }
-    }
-
     public PlayerRole pickBalancedRole() {
         int hunters = countAliveHunters();
         int runners = countAliveRunners();
@@ -491,6 +464,22 @@ public final class PlayerRoleManager {
             p.teleport(loc);
             p.setFallDistance(0f);
         } catch (Throwable ignored) {}
+    }
+
+    private Location calcLateJoinRunnerLocation(Player me) {
+        List<Player> mates = getOnlineRunners();
+        mates.remove(me);
+
+        if (mates.isEmpty()) {
+            return calcGameSpawn();
+        }
+
+        Player target = mates.get(ThreadLocalRandom.current().nextInt(mates.size()));
+        if (spawnScatterManager != null) {
+            return spawnScatterManager.findSafeSpotNearSync(target.getLocation(), 10);
+        }
+
+        return target.getLocation();
     }
 
     private Location calcLobbySpawn() {
@@ -514,7 +503,7 @@ public final class PlayerRoleManager {
 
     private Location calcRespawnLocation(Player p) {
         try {
-            Location bed = p.getBedSpawnLocation();
+            Location bed = p.getRespawnLocation();
             if (bed != null && isGameWorld(bed.getWorld())) {
                 return bed.clone();
             }
@@ -526,11 +515,14 @@ public final class PlayerRoleManager {
     }
 
     // ---------- 杂项逻辑 ----------
-
     private void ensureHunterCompass(Player p) {
+        ensureHunterCompass(p, true);
+    }
+
+    private void ensureHunterCompass(Player p, boolean checkRole) {
         if (p == null || trackingListener == null) return;
         if (gameManager.getState() != GameState.RUNNING) return;
-        if (getRole(p.getUniqueId()) != PlayerRole.HUNTER) return;
+        if (checkRole && getRole(p.getUniqueId()) != PlayerRole.HUNTER) return;
         boolean hasTagged = false;
         try {
             for (ItemStack it : p.getInventory().getContents()) {
@@ -546,11 +538,22 @@ public final class PlayerRoleManager {
 
     public void resetPlayerVitals(Player p, boolean isIngameRespawn) {
         try {
-            p.setFireTicks(0); p.setFreezeTicks(0); p.setFallDistance(0f); p.setInvulnerable(false);
+            p.setFireTicks(0);
+            p.setFreezeTicks(0);
+            p.setFallDistance(0f);
+            p.setInvulnerable(false);
+
             p.getActivePotionEffects().forEach(eff -> p.removePotionEffect(eff.getType()));
-            p.setHealth(Math.min((p.getHealthScale() > 0 ? p.getHealthScale() : 20.0), p.getMaxHealth()));
-            p.setFoodLevel(20); p.setSaturation(20);
-            p.setTotalExperience(0); p.setExp(0f); p.setLevel(0);
+
+            p.setHealth(20.0);
+
+            p.setFoodLevel(20);
+            p.setSaturation(6.0f);
+            p.setExhaustion(0.0f);
+            p.setTotalExperience(0);
+            p.setExp(0f);
+            p.setLevel(0);
+
             if (!isIngameRespawn) {
                 p.getInventory().clear(); p.getEnderChest().clear();
                 Iterator<Advancement> it = Bukkit.advancementIterator();
@@ -600,5 +603,9 @@ public final class PlayerRoleManager {
 
             if (!hasAnyHunterAlive()) gameManager.tryEnd(WinReason.Runners_Hunters_All_Gone, null);
         }
+    }
+
+    public void setSpawnScatterManager(SpawnScatterManager spawnScatterManager) {
+        this.spawnScatterManager = spawnScatterManager;
     }
 }

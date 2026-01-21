@@ -8,18 +8,19 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerAdvancementDoneEvent;
 import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.manager.PlayerRoleManager;
-import top.chancelethay.minehunt.game.manager.SpawnScatterManager;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.WinReason;
 import top.chancelethay.minehunt.game.manager.GameManager;
 import top.chancelethay.minehunt.utils.MessageService;
 
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * 游戏流程杂项监听器
- *
  * 监听特定的游戏内事件以触发胜负判定或特殊规则。
  * 包括末影龙击杀判定和伤害减免规则。
  */
@@ -32,6 +33,10 @@ public final class MiscListener implements Listener {
 
     private static final NamespacedKey DRAGON_KILL_KEY = NamespacedKey.minecraft("end/kill_dragon");
     private static final NamespacedKey FOLLOW_ENDER_EYE_KEY = NamespacedKey.minecraft("story/follow_ender_eye");
+
+    private static final Set<String> PRIVATE_CMD = Set.of(
+            "msg", "tell", "w", "r", "reply", "whisper"
+    );
 
     public MiscListener(GameManager gameManager,
                         MessageService msg,
@@ -82,6 +87,33 @@ public final class MiscListener implements Listener {
         if (e.getCause() == EntityDamageEvent.DamageCause.LAVA) {
             if (!(e.getEntity() instanceof Player)) return;
             e.setDamage(e.getDamage() * 0.7);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPrivateChatCommand(PlayerCommandPreprocessEvent e) {
+        if (!settings.disablePrivateChat) return;
+
+        if (e.getPlayer().hasPermission("minehunt.admin")) return;
+
+        String msgRaw = e.getMessage().trim(); // e.g. "/msg player hello"
+        if (msgRaw.length() < 2) return;
+
+        String[] parts = msgRaw.substring(1).split("\\s+");
+        if (parts.length == 0) return;
+
+        String cmd = parts[0].toLowerCase(Locale.ROOT);
+
+        if (cmd.contains(":")) {
+            String[] split = cmd.split(":");
+            if (split.length > 1) {
+                cmd = split[1];
+            }
+        }
+
+        if (PRIVATE_CMD.contains(cmd)) {
+            e.setCancelled(true);
+            msg.send(e.getPlayer(), "guard.no_private_chat");
         }
     }
 }

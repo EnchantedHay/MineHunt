@@ -8,8 +8,6 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
-import top.chancelethay.minehunt.MineHuntPlugin;
-import top.chancelethay.minehunt.game.manager.SpawnScatterManager;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
@@ -22,7 +20,6 @@ import java.util.*;
 
 /**
  * 玩家生命周期监听器
- *
  * 负责处理玩家的加入、退出、死亡、重生以及物品交互事件。
  * 协调角色状态的恢复和清理。
  */
@@ -33,7 +30,6 @@ public final class PlayerLifecycleListener implements Listener {
     private final LobbyListener lobbyListener;
     private final TrackingListener trackingListener;
     private final Settings settings;
-    private final MineHuntPlugin plugin;
     private final PlayerRoleManager playerRoleManager;
     private final Tasks tasks;
 
@@ -43,7 +39,6 @@ public final class PlayerLifecycleListener implements Listener {
                                    LobbyListener lobbyListener,
                                    TrackingListener trackingListener,
                                    Settings settings,
-                                   MineHuntPlugin plugin,
                                    PlayerRoleManager playerRoleManager,
                                    Tasks tasks) {
         this.gameManager = gameManager;
@@ -51,7 +46,6 @@ public final class PlayerLifecycleListener implements Listener {
         this.lobbyListener = lobbyListener;
         this.trackingListener = trackingListener;
         this.settings = settings;
-        this.plugin = plugin;
         this.playerRoleManager = playerRoleManager;
         this.tasks = tasks;
     }
@@ -146,7 +140,7 @@ public final class PlayerLifecycleListener implements Listener {
         tasks.run(() -> {
             if (st == GameState.LOBBY || st == GameState.COUNTDOWN) {
                 int onlineAfterQuit = Bukkit.getOnlinePlayers().size();
-                gameManager.handleLobbyQuit(id, onlineAfterQuit);
+                gameManager.handleLobbyQuit(onlineAfterQuit);
                 gameManager.onOnlineCountChanged(onlineAfterQuit);
             }
             playerRoleManager.handleQuit(p, roleBeforeQuit);
@@ -182,7 +176,7 @@ public final class PlayerLifecycleListener implements Listener {
             PlayerRole before = playerRoleManager.getRole(id);
             if (gs == GameState.RUNNING) {
                 if (before == PlayerRole.HUNTER) {
-                    playerRoleManager.setRole(p, PlayerRole.HUNTER, true);
+                    playerRoleManager.setRole(p, PlayerRole.HUNTER, true, true, false);
                     msg.send(p, "respawn.hunter.ok");
                 } else if (before == PlayerRole.RUNNER) {
                     playerRoleManager.setRole(p, PlayerRole.SPECTATOR);
@@ -230,14 +224,8 @@ public final class PlayerLifecycleListener implements Listener {
         Player p = e.getEntity();
         if (playerRoleManager.getRole(p.getUniqueId()) != PlayerRole.HUNTER) return;
 
-        Iterator<ItemStack> it = e.getDrops().iterator();
-        while (it.hasNext()) {
-            ItemStack item = it.next();
-            if (item != null
-                    && item.getType() == Material.COMPASS
-                    && trackingListener.isTaggedHunterCompass(item)) {
-                it.remove();
-            }
-        }
+        e.getDrops().removeIf(item -> item != null
+                && item.getType() == Material.COMPASS
+                && trackingListener.isTaggedHunterCompass(item));
     }
 }

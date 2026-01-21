@@ -38,7 +38,8 @@ public final class SettingsLoader {
                 c.getInt("world.preloadRadiusBlocks", 1000),
 
                 c.getBoolean("compatibility.useExternalChat", true),
-                c.getBoolean("compatibility.useExternalTab", true)
+                c.getBoolean("compatibility.useExternalTab", true),
+                c.getBoolean("game.disablePrivateChat", true)
         );
     }
 }

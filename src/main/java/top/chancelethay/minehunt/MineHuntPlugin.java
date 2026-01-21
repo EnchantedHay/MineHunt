@@ -12,10 +12,10 @@ import java.util.logging.Logger;
 
 /**
  * MineHunt 插件主类
- *
  * 负责插件的生命周期管理、配置文件加载、依赖注入以及各模块的初始化。
  * 采用分步装配策略以解决管理器之间的循环依赖问题。
  */
+@SuppressWarnings("unused")
 public final class MineHuntPlugin extends JavaPlugin {
 
     // 基础设施
@@ -86,7 +86,7 @@ public final class MineHuntPlugin extends JavaPlugin {
         this.worldManager.ensureWorlds(settings);
 
         // 3. 初始化基础服务
-        this.trackingListener = new TrackingListener(settings, msg, tasks, this, null);
+        this.trackingListener = new TrackingListener(msg, tasks, this, null);
         this.spawnScatterManager = new SpawnScatterManager(settings, tasks);
 
         // 4. 构建核心管理器
@@ -116,19 +116,15 @@ public final class MineHuntPlugin extends JavaPlugin {
 
         // 5. 补全延迟依赖注入
         this.trackingListener.setPlayerRoleManager(playerRoleManager);
-
         this.spawnScatterManager.setPlayerRoleManager(playerRoleManager);
-
         this.gameManager.setPlayerRoleManager(playerRoleManager);
-
         this.boardListener.setPlayerRoleManager(playerRoleManager);
-
         this.trackingListener.setGameManager(gameManager);
+        this.playerRoleManager.setSpawnScatterManager(spawnScatterManager);
 
         // 6. 构建上层服务与监听器
         this.lobbyListener = new LobbyListener(
                 settings,
-                msg,
                 gameManager,
                 playerRoleManager,
                 tasks
@@ -140,7 +136,6 @@ public final class MineHuntPlugin extends JavaPlugin {
                 lobbyListener,
                 trackingListener,
                 settings,
-                this,
                 playerRoleManager,
                 tasks
         );
@@ -174,8 +169,7 @@ public final class MineHuntPlugin extends JavaPlugin {
                 gameManager,
                 worldManager,
                 playerRoleManager,
-                commandGuard,
-                lobbyListener
+                commandGuard
         );
         cmd.setExecutor(this.mineHuntCommand);
         cmd.setTabCompleter(this.mineHuntCommand);

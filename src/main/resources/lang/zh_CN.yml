@@ -41,36 +41,19 @@ cmd:
     not_countdown: "&c当前不在倒计时阶段，无法延长。"
     ok: "&a成功延长倒计时！"
 
-vote:
-  already_active: "&c当前已经有一个正在进行的投票。"
-  not_active: "&c当前没有正在进行的投票。"
-  not_participant: "&c只有参赛者（猎人/速通者）才能投票。"
-  already_voted: "&c你已经投过票了。"
-  started:
-    - "&e========================================"
-    - "&e玩家 &f{0} &e发起了结束游戏投票。"
-    - "&e需要所有存活参赛者同意。"
-    - "&e========================================"
-  # 注意：这里我们将在代码中通过 Component 构建点击按钮，
-  # 所以不需要在这里写按钮的文本，但需要写进度的文本。
-  progress: "&e当前进度: &a{0} &e/ &a{1} &7({2} 已同意)"
-  success: "&a所有玩家均同意！游戏将在 5秒后 结束。"
-  failed: "&c投票失败（有人拒绝或超时）。"
-  refused: "&c{0} 拒绝了投票，流程结束。"
-  button:
-    text: "&a[点击这里同意结束]"
-    hover: "&7点击投赞成票"
-
-
 compass:
   no_last: "&7当前世界未发现速通者，也无最后已知位置记录。"
-  locked_nearest: "&a已锁定最近的速通者：&b{0} &7(距离：{1})"
+  locked_nearest: "&a已锁定最近的速通者：&b{0} &7({1}&7)"
   cross_world_last: "&7当前维度无速通者。正在追踪 &b{0} &7的最后已知位置。"
   dist:
     very_close: "&c很近"
     close: "&e较近"
     far: "&a较远"
     very_far: "&7很远"
+  vertical:
+    up: " &7(↑上方)"
+    down: " &7(↓下方)"
+    same: " &7(≈平层)"
 
 enderdragon:
   dead: "&d末影龙已被击败！速通者胜利！"
@@ -97,6 +80,9 @@ game:
     done: "&a世界重置完成！欢迎回到大厅。"
   rejoin:
     grace: "&a欢迎回来！你的掉线保护时间还剩 &b{0}秒&a。"
+  broadcast:
+    late_join_runner: "&e速通者 &f{0} &e已加入游戏！"
+    late_join_hunter: "&e新猎人 &f{0} &e已加入追捕！"
 
 guard:
   no:
@@ -106,6 +92,7 @@ guard:
   bad:
     state: "&e无效状态：&b{0}"
   resetting: "&e世界正在重置，请稍后再试。"
+  no_private_chat: "&c已禁用私聊功能，队内沟通请使用/teammsg或/tm。"
 
 hunter:
   all:

@@ -4,8 +4,6 @@ import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
@@ -16,19 +14,16 @@ import top.chancelethay.minehunt.utils.MessageService;
 import top.chancelethay.minehunt.utils.Tasks;
 
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.LinkedList;
 import java.util.Queue;
 
 /**
  * 游戏主控制器
- *
  * 负责管理游戏的整体生命周期状态机（大厅 -> 倒计时 -> 进行中 -> 结束 -> 重置）。
  * 协调各个子模块进行状态转换，并处理游戏循环的核心逻辑。
  */
 public final class GameManager {
 
-    private static final Logger log = LoggerFactory.getLogger(GameManager.class);
     private final Settings settings;
     private final MessageService msg;
     private final GameWorldManager gameWorldManager;
@@ -38,13 +33,13 @@ public final class GameManager {
     private final TrackingListener trackingListener;
     private PlayerRoleManager playerRoleManager;
 
-    private volatile GameState state = GameState.LOBBY;
-    private volatile boolean rolesLocked = false;
-    private final AtomicBoolean ending = new AtomicBoolean(false);
+    private GameState state = GameState.LOBBY;
+    private boolean rolesLocked = false;
+    private boolean ending = false;
 
     private BukkitTask countdownTask;
-    private volatile int countdownLeft = 0;
-    private volatile long roundStartMillis = 0L;
+    private int countdownLeft = 0;
+    private long roundStartMillis = 0L;
     private BukkitTask disconnectWatchdog;
     private boolean autoStartArmed = true;
 
@@ -84,10 +79,6 @@ public final class GameManager {
         this.rolesLocked = on;
     }
 
-    public long getRoundStartMillis() {
-        return roundStartMillis;
-    }
-
     /* ==============================================================================================================
      * 游戏流程控制：开始
      * =========================================================================================================== */
@@ -95,7 +86,7 @@ public final class GameManager {
     /**
      * 尝试启动倒计时流程。
      */
-    public synchronized void start() {
+    public void start() {
         if (state != GameState.LOBBY) {
             msg.broadcast("game.already");
             return;
@@ -155,17 +146,22 @@ public final class GameManager {
         if (settings.autoLockRolesOnStart) {
             rolesLocked = true;
         }
-        ending.set(false);
+        ending = false;
 
         World gameWorld = Bukkit.getWorld(settings.gameWorld);
         if (gameWorld != null) {
             gameWorld.setTime(0L);
             gameWorld.setStorm(false);
             gameWorld.setThundering(false);
-            int ticks20min = 24000;
-            gameWorld.setClearWeatherDuration(ticks20min);
-            gameWorld.setThunderDuration(4 * ticks20min);
-            gameWorld.setGameRule(GameRule.LOCATOR_BAR, false);
+
+            int clearDuration = 12000 + java.util.concurrent.ThreadLocalRandom.current().nextInt(168000);
+            gameWorld.setClearWeatherDuration(clearDuration);
+
+            int thunderDelay = 120000 + java.util.concurrent.ThreadLocalRandom.current().nextInt(156000);
+            gameWorld.setThunderDuration(thunderDelay);
+
+            gameWorld.setGameRule(GameRules.LOCATOR_BAR, false);
+            gameWorld.setGameRule(GameRules.SPECTATORS_GENERATE_CHUNKS, false);
             WorldBorder border = gameWorld.getWorldBorder();
             border.setCenter(0.0, 0.0);
             border.setSize(11520.0);
@@ -173,7 +169,8 @@ public final class GameManager {
             for (String suffix : new String[]{"_nether", "_the_end"}) {
                 World dim = Bukkit.getWorld(settings.gameWorld + suffix);
                 if (dim != null) {
-                    dim.setGameRule(GameRule.LOCATOR_BAR, false);
+                    dim.setGameRule(GameRules.LOCATOR_BAR, false);
+                    dim.setGameRule(GameRules.SPECTATORS_GENERATE_CHUNKS, false);
                     dim.getWorldBorder().setCenter(0.0, 0.0);
                     dim.getWorldBorder().setSize(11520.0);
                 }
@@ -187,9 +184,9 @@ public final class GameManager {
             if (current == PlayerRole.HUNTER
                     || current == PlayerRole.RUNNER
                     || current == PlayerRole.SPECTATOR) {
-                playerRoleManager.setRole(p, current, false, false);
+                playerRoleManager.setRole(p, current, false);
             } else {
-                playerRoleManager.setRole(p, PlayerRole.LOBBY, false, false);
+                playerRoleManager.setRole(p, PlayerRole.LOBBY, false);
             }
         }
 
@@ -229,7 +226,7 @@ public final class GameManager {
     /**
      * 强制立即开始游戏。
      */
-    public synchronized void forceBeginRound() {
+    public void forceBeginRound() {
         GameState st = this.state;
         if (st != GameState.LOBBY && st != GameState.COUNTDOWN) {
             return;
@@ -252,14 +249,15 @@ public final class GameManager {
     }
 
     public void tryEnd(WinReason reason, Location contextLoc) {
-        if (!ending.compareAndSet(false, true)) return;
+        if (this.ending) {return;}
+        this.ending = true;
         tasks.run(() -> end(reason, contextLoc));
     }
 
     /**
      * 处理游戏结束逻辑。
      */
-    public synchronized void end(WinReason reason, Location contextLoc) {
+    public void end(WinReason reason, Location contextLoc) {
         if (state != GameState.RUNNING && state != GameState.COUNTDOWN) return;
 
         if (state == GameState.COUNTDOWN && countdownTask != null) {
@@ -277,6 +275,17 @@ public final class GameManager {
         state = GameState.ENDED;
         roundStartMillis = 0L;
 
+        World gw = Bukkit.getWorld(settings.gameWorld);
+        if (gw != null) {
+            gw.setGameRule(GameRules.SPECTATORS_GENERATE_CHUNKS, true);
+        }
+        for (String suffix : new String[]{"_nether", "_the_end"}) {
+            World dim = Bukkit.getWorld(settings.gameWorld + suffix);
+            if (dim != null) {
+                dim.setGameRule(GameRules.SPECTATORS_GENERATE_CHUNKS, true);
+            }
+        }
+
         Location finalSpectateLoc = null;
 
         if (reason == WinReason.RUNNERS_Kill_Dragon) {
@@ -286,6 +295,12 @@ public final class GameManager {
             }
         } else if (reason == WinReason.HUNTERS_WIN && contextLoc != null) {
             finalSpectateLoc = contextLoc;
+        }
+
+        if (finalSpectateLoc == null) {
+            if (gw != null) {
+                finalSpectateLoc = gw.getSpawnLocation().clone();
+            }
         }
 
         playerRoleManager.setGlobalEndSpectateLocation(finalSpectateLoc);
@@ -311,14 +326,14 @@ public final class GameManager {
                 }
 
                 for (int i = 0; i < 5 && !queue.isEmpty(); i++) {
-                    Player p = queue.remove(0);
+                    Player p = queue.removeFirst();
                     if (p == null || !p.isOnline()) continue;
 
                     UUID pid = p.getUniqueId();
                     if (playerRoleManager.isParticipant(pid)) {
-                        playerRoleManager.setRole(p, PlayerRole.SPECTATOR, false, false);
+                        playerRoleManager.setRole(p, PlayerRole.SPECTATOR, false);
                     } else {
-                        playerRoleManager.setRole(p, PlayerRole.LOBBY, false, false);
+                        playerRoleManager.setRole(p, PlayerRole.LOBBY, false);
                     }
                 }
             }
@@ -352,7 +367,7 @@ public final class GameManager {
                         if (p == null || !p.isOnline()) continue;
 
                         try {
-                            playerRoleManager.setRole(p, PlayerRole.LOBBY, false, false);
+                            playerRoleManager.setRole(p, PlayerRole.LOBBY, false);
 
                             if (lobbyWorld != null && p.getWorld() != lobbyWorld) {
                                 p.teleport(lobbyWorld.getSpawnLocation());
@@ -376,7 +391,7 @@ public final class GameManager {
     private void onWorldResetDone() {
         state = GameState.LOBBY;
         rolesLocked = false;
-        ending.set(false);
+        ending = false;
         autoStartArmed = true;
 
         msg.broadcast("game.reset.done");
@@ -395,7 +410,7 @@ public final class GameManager {
      * 自动开局逻辑
      * =========================================================================================================== */
 
-    public synchronized void handleLobbyQuit(UUID id, int onlineAfterQuit) {
+    public void handleLobbyQuit(int onlineAfterQuit) {
         if (state == GameState.COUNTDOWN) {
             int min = Math.max(2, settings.autoStartMinPlayers);
             if (onlineAfterQuit < min
@@ -471,5 +486,10 @@ public final class GameManager {
         int runnerCount = playerRoleManager.countAliveRunners();
 
         return hunterCount > 0 && runnerCount > 0;
+    }
+
+    public boolean isLateJoinAllowed() {
+        if (state != GameState.RUNNING) return false;
+        return (System.currentTimeMillis() - roundStartMillis) < 1800000L;
     }
 }

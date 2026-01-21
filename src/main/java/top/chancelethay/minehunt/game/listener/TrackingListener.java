@@ -17,8 +17,6 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.NamespacedKey;
 import org.jetbrains.annotations.Nullable;
-import top.chancelethay.minehunt.game.manager.SpawnScatterManager;
-import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.manager.GameManager;
@@ -30,30 +28,26 @@ import java.util.*;
 
 /**
  * 追踪服务
- *
  * 负责管理猎人指南针的核心功能。
  * 包含跨维度位置记忆、目标搜索算法以及右键交互的冷却控制。
  */
 public final class TrackingListener implements Listener {
 
-    private final Settings settings;
     private final MessageService msg;
     private final Tasks tasks;
     private final NamespacedKey hunterCompassKey;
 
     private PlayerRoleManager playerRoleManager;
-    private volatile GameManager gameManager;
+    private GameManager gameManager;
 
     private final Map<UUID, Location> lastKnownByRunner = new HashMap<>();
     private final Map<UUID, Long> clickCooldown = new HashMap<>();
     private static final long CLICK_COOLDOWN_MS = 150L;
 
-    public TrackingListener(Settings settings,
-                            MessageService msg,
+    public TrackingListener(MessageService msg,
                             Tasks tasks,
                             Plugin plugin,
                             GameManager gameManager) {
-        this.settings = settings;
         this.msg = msg;
         this.tasks = tasks;
         this.gameManager = gameManager;
@@ -242,13 +236,22 @@ public final class TrackingListener implements Listener {
         if (bestId == null || bestLoc == null) return false;
 
         org.bukkit.util.Vector direction = bestLoc.toVector().subtract(hLoc.toVector());
+        double deltaY = direction.getY();
+        direction.setY(0);
 
+        double realDist = direction.length();
         Location fakeTarget;
 
-        if (direction.lengthSquared() < 0.01) {
+        if (realDist < 0.1) {
             fakeTarget = hLoc.clone();
         } else {
-            direction.normalize().multiply(100.0);
+            double fakeDist;
+            if (realDist < 100.0) {
+                fakeDist = Math.max(5.0, realDist);
+            } else {
+                fakeDist = 90.0 + java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 20.0;
+            }
+            direction.normalize().multiply(fakeDist);
             fakeTarget = hLoc.clone().add(direction);
             fakeTarget.setY(hLoc.getY());
         }
@@ -258,6 +261,17 @@ public final class TrackingListener implements Listener {
         if (bestName == null) {
             Player p = Bukkit.getPlayer(bestId);
             bestName = (p != null) ? p.getName() : "Runner";
+        }
+
+        String vHint = "";
+        if (isCurrent) {
+            if (deltaY > 30) {
+                vHint = msg.tr("compass.vertical.up");
+            } else if (deltaY < -30) {
+                vHint = msg.tr("compass.vertical.down");
+            } else {
+                vHint = msg.tr("compass.vertical.same");
+            }
         }
 
         int dist = (int) Math.round(Math.sqrt(minD2));
@@ -270,10 +284,17 @@ public final class TrackingListener implements Listener {
         String distDesc = msg.tr(distKey);
 
         if (isCurrent) {
-            msg.sendActionBar(hunter, "compass.locked_nearest", bestName, distDesc);
+            msg.sendActionBar(hunter, "compass.locked_nearest", bestName, distDesc + vHint);
         } else {
             msg.sendActionBar(hunter, "compass.cross_world_last", bestName);
         }
+
+        float pitch = 1.0f;
+        if (realDist < 200) {
+            pitch = 2.0f - (float)(realDist / 200.0);
+        }
+        hunter.playSound(hunter.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, pitch);
+
         return true;
     }
 

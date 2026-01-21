@@ -5,6 +5,8 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.popcraft.chunky.api.ChunkyAPI;
 import org.popcraft.chunky.api.event.task.GenerationCompleteEvent;
 import org.popcraft.chunky.api.event.task.GenerationProgressEvent;
@@ -21,12 +23,10 @@ import java.util.logging.Logger;
 
 /**
  * 游戏世界管理器
- *
  * 负责游戏地图的生命周期管理，包括：
  * - 初始化加载
  * - 后台预生成 (_next 世界)
  * - 地图重置与切换 (Promote)
- *
  * 采用异步 I/O 和时间切片技术来最大限度减少对主线程的影响。
  */
 public final class GameWorldManager {
@@ -36,7 +36,7 @@ public final class GameWorldManager {
     private final AtomicBoolean resetting = new AtomicBoolean(false);
     private final AtomicBoolean nextPreparing = new AtomicBoolean(false);
     private final AtomicBoolean nextReady     = new AtomicBoolean(false);
-    private volatile int nextProgressPercent  = 0;
+    private volatile int nextProgressPercent = 0;
 
     public GameWorldManager(Tasks tasks) {
         this.tasks = tasks;
@@ -213,11 +213,11 @@ public final class GameWorldManager {
         if (!dir.exists()) return;
         Path root = dir.toPath();
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
-            @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+            @Override public @NonNull FileVisitResult visitFile(@NotNull Path file, @NotNull BasicFileAttributes attrs) {
                 try { Files.deleteIfExists(file); } catch (IOException ignored) {}
                 return FileVisitResult.CONTINUE;
             }
-            @Override public FileVisitResult postVisitDirectory(Path d, IOException exc) {
+            @Override public @NonNull FileVisitResult postVisitDirectory(@NotNull Path d, IOException exc) {
                 try { Files.deleteIfExists(d); } catch (IOException ignored) {}
                 return FileVisitResult.CONTINUE;
             }
@@ -225,7 +225,7 @@ public final class GameWorldManager {
         log.info("[Worlds] Deleted folder: " + worldName);
     }
 
-    private World createWorld(String name, World.Environment env, long seed, boolean useSeed) {
+    private void createWorld(String name, World.Environment env, long seed, boolean useSeed) {
         try {
             WorldCreator wc = new WorldCreator(name).environment(env);
             wc.type(WorldType.NORMAL);
@@ -240,10 +240,8 @@ public final class GameWorldManager {
                 } catch (Throwable ignored) {}
                 log.info("[Worlds] Created: " + name + " (" + env.name() + ")");
             }
-            return w;
         } catch (Throwable ex) {
             log.severe("[Worlds] Create world failed: " + name + " -> " + ex.getMessage());
-            return null;
         }
     }
 
@@ -289,7 +287,7 @@ public final class GameWorldManager {
 
         chunky.onGenerationProgress((GenerationProgressEvent ev) -> {
             if (!worldName.equalsIgnoreCase(ev.world())) return;
-            int pct = Math.clamp((int) Math.round(ev.progress()), 0, 100);
+            int pct = Math.clamp(Math.round(ev.progress()), 0, 100);
             if (pct > nextProgressPercent) nextProgressPercent = pct;
         });
 
