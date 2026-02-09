@@ -24,7 +24,6 @@ scatter:
 world:
   preloadRadiusBlocks: 640
 
-# 文本与多语言
 messages:
   prefix: "&7[&aMineHunt&7]&r "
 locale: zh_CN

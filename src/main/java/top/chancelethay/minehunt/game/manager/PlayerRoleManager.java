@@ -338,13 +338,13 @@ public final class PlayerRoleManager {
                         Location dropLoc = calcLateJoinRunnerLocation(p);
                         safeTeleport(p, dropLoc);
 
-                        msg.send(p, "&a你已中途加入游戏！正在空投至队友附近...");
+                        msg.send(p, "game.late_join.runner_airdrop");
 
                         p.setInvulnerable(true);
                         tasks.later(() -> {
                             if (p.isOnline()) {
                                 p.setInvulnerable(false);
-                                msg.send(p, "&c无敌时间已结束！");
+                                msg.send(p, "&cgame.invulnerable_expired");
                             }
                         }, 200L);
                     } else {

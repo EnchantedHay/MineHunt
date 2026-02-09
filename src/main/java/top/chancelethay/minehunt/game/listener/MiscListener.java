@@ -38,6 +38,10 @@ public final class MiscListener implements Listener {
             "msg", "tell", "w", "r", "reply", "whisper"
     );
 
+    private static final Set<String> BLOCKED_CMD = Set.of(
+            "locate", "seed"
+    );
+
     public MiscListener(GameManager gameManager,
                         MessageService msg,
                         Settings settings,
@@ -90,20 +94,16 @@ public final class MiscListener implements Listener {
         }
     }
 
-    @EventHandler(ignoreCancelled = true)
-    public void onPrivateChatCommand(PlayerCommandPreprocessEvent e) {
-        if (!settings.disablePrivateChat) return;
-
-        if (e.getPlayer().hasPermission("minehunt.admin")) return;
-
-        String msgRaw = e.getMessage().trim(); // e.g. "/msg player hello"
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
+    public void onCommandPreprocess(PlayerCommandPreprocessEvent e) {
+        String msgRaw = e.getMessage().trim();
         if (msgRaw.length() < 2) return;
 
         String[] parts = msgRaw.substring(1).split("\\s+");
         if (parts.length == 0) return;
 
-        String cmd = parts[0].toLowerCase(Locale.ROOT);
-
+        String cmdRaw = parts[0].toLowerCase(Locale.ROOT);
+        String cmd = cmdRaw;
         if (cmd.contains(":")) {
             String[] split = cmd.split(":");
             if (split.length > 1) {
@@ -111,9 +111,19 @@ public final class MiscListener implements Listener {
             }
         }
 
-        if (PRIVATE_CMD.contains(cmd)) {
+        if (BLOCKED_CMD.contains(cmd)) {
             e.setCancelled(true);
-            msg.send(e.getPlayer(), "guard.no_private_chat");
+            msg.send(e.getPlayer(), "guard.blocked_cmd");
+            return;
+        }
+
+        if (settings.disablePrivateChat) {
+            if (e.getPlayer().hasPermission("minehunt.admin")) return;
+
+            if (PRIVATE_CMD.contains(cmd)) {
+                e.setCancelled(true);
+                msg.send(e.getPlayer(), "guard.no_private_chat");
+            }
         }
     }
 }

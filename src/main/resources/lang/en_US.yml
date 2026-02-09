@@ -80,10 +80,12 @@ game:
     done: "&aWorld reset completed! Back to lobby."
   rejoin:
     grace: "&aWelcome back! You have &b{0}s &aremaining on your grace period."
-  game:
-    broadcast:
-      late_join_runner: "&eNew Runner &f{0} &ehas joined the game!"
-      late_join_hunter: "&eNew Hunter &f{0} &ehas joined the hunt!"
+  broadcast:
+    late_join_runner: "&eNew Runner &f{0} &ehas joined the game!"
+    late_join_hunter: "&eNew Hunter &f{0} &ehas joined the hunt!"
+  late_join:
+    runner_airdrop: "&aLate join! Airdropping near teammates..."
+    invulnerable_expired: "&cInvulnerability has expired!"
 
 guard:
   no:
@@ -94,6 +96,7 @@ guard:
     state: "&eInvalid state: &b{0}"
   resetting: "&eWorld is resetting, please try again later."
   no_private_chat: "&cPrivate messaging is disabled. Use /teammsg or /tm instead."
+  blocked_cmd: "&cThis command is disabled."
 
 hunter:
   all:

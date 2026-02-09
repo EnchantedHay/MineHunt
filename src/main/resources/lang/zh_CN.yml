@@ -83,6 +83,9 @@ game:
   broadcast:
     late_join_runner: "&e速通者 &f{0} &e已加入游戏！"
     late_join_hunter: "&e新猎人 &f{0} &e已加入追捕！"
+  late_join:
+    runner_airdrop: "&a你已中途加入游戏！正在空投至队友附近..."
+    invulnerable_expired: "&c无敌时间已结束！"
 
 guard:
   no:
@@ -93,6 +96,7 @@ guard:
     state: "&e无效状态：&b{0}"
   resetting: "&e世界正在重置，请稍后再试。"
   no_private_chat: "&c已禁用私聊功能，队内沟通请使用/teammsg或/tm。"
+  blocked_cmd: "&c该指令已禁用。"
 
 hunter:
   all:

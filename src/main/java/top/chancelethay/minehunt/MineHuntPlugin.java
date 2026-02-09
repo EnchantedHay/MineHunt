@@ -190,7 +190,7 @@ public final class MineHuntPlugin extends JavaPlugin {
                 playerRoleManager
         );
         pm.registerEvents(this.miscListener, this);
-
+        pm.registerEvents(new AntiSeedCrackListener(), this);
         pm.registerEvents(this.boardListener, this);
     }
 
