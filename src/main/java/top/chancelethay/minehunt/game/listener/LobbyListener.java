@@ -29,7 +29,7 @@ public final class LobbyListener implements Listener {
 
     private boolean autoAssignEnabled;
 
-    private World cachedLobbyWorld;
+    private World LobbyWorldName;
 
     public LobbyListener(Settings settings,
                          GameManager gameManager,
@@ -44,10 +44,10 @@ public final class LobbyListener implements Listener {
 
     public void enable() {
         Bukkit.getPluginManager().registerEvents(this, tasks.getPlugin());
-        this.cachedLobbyWorld = Bukkit.getWorld(settings.lobbyWorld);
+        this.LobbyWorldName = Bukkit.getWorld(settings.lobbyWorld);
 
-        if (cachedLobbyWorld != null) {
-            applyLobbyRules(cachedLobbyWorld);
+        if (LobbyWorldName != null) {
+            applyLobbyRules(LobbyWorldName);
         }
     }
 
@@ -60,12 +60,12 @@ public final class LobbyListener implements Listener {
 
     private boolean isLobby(World w) {
         if (w == null) return false;
-        if (cachedLobbyWorld != null) {
-            return w == cachedLobbyWorld;
+        if (LobbyWorldName != null) {
+            return w == LobbyWorldName;
         }
 
         if (w.getName().equals(settings.lobbyWorld)) {
-            cachedLobbyWorld = w;
+            LobbyWorldName = w;
             return true;
         }
         return false;
@@ -149,7 +149,7 @@ public final class LobbyListener implements Listener {
     }
 
     private void teleportToLobbySpawn(Player p) {
-        World lobby = (cachedLobbyWorld != null) ? cachedLobbyWorld : Bukkit.getWorld(settings.lobbyWorld);
+        World lobby = (LobbyWorldName != null) ? LobbyWorldName : Bukkit.getWorld(settings.lobbyWorld);
         if (lobby != null) {
             p.teleport(lobby.getSpawnLocation());
             p.setFallDistance(0);
@@ -224,6 +224,6 @@ public final class LobbyListener implements Listener {
     public void setSettings(Settings newSettings) {
         this.settings = newSettings;
         this.autoAssignEnabled = newSettings.autoAssignOnJoin;
-        this.cachedLobbyWorld = Bukkit.getWorld(settings.lobbyWorld);
+        this.LobbyWorldName = Bukkit.getWorld(settings.lobbyWorld);
     }
 }

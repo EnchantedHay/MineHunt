@@ -33,13 +33,10 @@ public final class PlayerRoleManager {
     private final MessageService msg;
     private final Tasks tasks;
 
-    private final String gameWorldName;
     private final String lobbyWorldName;
-
-    // 世界对象引用缓存
-    private World cachedGameWorld;
-    private World cachedNetherWorld;
-    private World cachedEndWorld;
+    private final String gameWorldName;
+    private final String netherWorldName;
+    private final String endWorldName;
 
     // 玩家角色映射表
     public final Map<UUID, PlayerRole> roleOf = new ConcurrentHashMap<>();
@@ -72,8 +69,10 @@ public final class PlayerRoleManager {
         this.settings = settings;
         this.msg = msg;
         this.tasks = tasks;
-        this.gameWorldName = settings.gameWorld;
         this.lobbyWorldName = settings.lobbyWorld;
+        this.gameWorldName = settings.gameWorld;
+        this.netherWorldName = settings.gameWorld + "_nether";
+        this.endWorldName = settings.gameWorld + "_the_end";
     }
 
     public Set<UUID> getRunnerIds() {
@@ -87,26 +86,10 @@ public final class PlayerRoleManager {
      */
     private boolean isGameWorld(World w) {
         if (w == null) return false;
-
-        // 优先检查缓存引用
-        if (w == cachedGameWorld || w == cachedNetherWorld || w == cachedEndWorld) return true;
-
-        // 缓存未命中时通过名称检查并更新缓存
         String name = w.getName();
-        if (name.equals(gameWorldName)) {
-            cachedGameWorld = w;
-            return true;
-        }
-        if (name.equals(gameWorldName + "_nether")) {
-            cachedNetherWorld = w;
-            return true;
-        }
-        if (name.equals(gameWorldName + "_the_end")) {
-            cachedEndWorld = w;
-            return true;
-        }
-
-        return false;
+        return name.equals(gameWorldName)
+                || name.equals(netherWorldName)
+                || name.equals(endWorldName);
     }
 
     // ---------- 掉线保护与超时管理 ----------
@@ -164,10 +147,7 @@ public final class PlayerRoleManager {
                 graceBudgets.put(id, 0L);
                 PlayerRole role = getRole(id);
                 String name = offlineNameCache.remove(id);
-                if (name == null) {
-                    name = Bukkit.getOfflinePlayer(id).getName();
-                    if (name == null) name = "Unknown";
-                }
+                if (name == null) name = "SomeOne";
                 eliminateAndCheckEnd(id, role, null, name);
             }
         }
@@ -202,10 +182,6 @@ public final class PlayerRoleManager {
         runnerCache.clear();
         hunterCache.clear();
         spectatorCache.clear();
-
-        cachedGameWorld = null;
-        cachedNetherWorld = null;
-        cachedEndWorld = null;
         try { boardListener.rebuildSidebarLines(); } catch (Throwable ignored) {}
     }
 

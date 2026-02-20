@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 /**
  * 散点服务
  * 负责游戏开始时为玩家计算和分配随机出生点。
- * 采用异步区块加载策略，防止大量坐标搜索导致主线程卡顿。
  */
 public final class SpawnScatterManager {
 
@@ -170,8 +169,10 @@ public final class SpawnScatterManager {
         int cx = world.getSpawnLocation().getBlockX();
         int cz = world.getSpawnLocation().getBlockZ();
         int ringR = Math.max(16, Math.max(MIN_RING_RADIUS, settings.runnerRingRadius));
-        int inner = 12;
-        int outer = Math.max(inner + 8, ringR - 8);
+
+        int inner = 0;
+        int outer = Math.min(48, ringR / 3);
+
         int tries = Math.max(8, settings.scatterMaxTries);
 
         attemptFindCenterRecursively(world, cx, cz, inner, outer, tries, onFound);
@@ -186,6 +187,7 @@ public final class SpawnScatterManager {
         Random rnd = ThreadLocalRandom.current();
         double ang = rnd.nextDouble() * Math.PI * 2.0;
         double dist = rMin + rnd.nextDouble() * (rMax - rMin);
+
         int x = cx + (int) Math.round(Math.cos(ang) * dist);
         int z = cz + (int) Math.round(Math.sin(ang) * dist);
 

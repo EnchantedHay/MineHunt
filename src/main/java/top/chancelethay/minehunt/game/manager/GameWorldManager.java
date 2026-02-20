@@ -136,7 +136,7 @@ public final class GameWorldManager {
     private void doPromoteNow(Settings s, Runnable onDone) {
         if (!resetting.compareAndSet(false, true)) return;
 
-        tasks.runTasksInSequence(2L,
+        tasks.runTasksInSequence(10L,
                 () -> cancelChunkyJobsForWorld(s.gameWorld + "_next"),
 
                 () -> unloadIfLoaded(s.gameWorld, false),

@@ -17,14 +17,14 @@ import top.chancelethay.minehunt.utils.Settings;
  * 传送门链接监听器
  *
  * 接管原版的传送门逻辑，强制将玩家或实体传送至插件管理的独立游戏世界。
- * 自动处理主世界与下界/末地的坐标映射。
  */
 public final class PortalLinkListener implements Listener {
 
     private Settings settings;
+    private String overworldName;
+    private String netherName;
+    private String endName;
     private static final double SAFE_BORDER_RADIUS = 5400.0;
-
-    private World cGame, cNether, cEnd;
 
     public PortalLinkListener(Settings settings) {
         this.settings = settings;
@@ -32,9 +32,9 @@ public final class PortalLinkListener implements Listener {
 
     public void setSettings(Settings settings) {
         this.settings = settings;
-        this.cGame = null;
-        this.cNether = null;
-        this.cEnd = null;
+        this.overworldName = settings.gameWorld;
+        this.netherName = settings.gameWorld + "_nether";
+        this.endName = settings.gameWorld + "_the_end";
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -71,7 +71,12 @@ public final class PortalLinkListener implements Listener {
     private boolean shouldIntercept(World from, TeleportCause cause) {
         if (from == null || settings == null) return false;
 
-        if (!isGameWorld(from)) return false;
+        String name = from.getName();
+        boolean isGameWorld = name.equals(overworldName)
+                || name.equals(netherName)
+                || name.equals(endName);
+
+        if (!isGameWorld) return false;
 
         if (cause == null) return true;
         return cause == TeleportCause.NETHER_PORTAL
@@ -79,34 +84,10 @@ public final class PortalLinkListener implements Listener {
                 || cause == TeleportCause.END_GATEWAY;
     }
 
-    private boolean isGameWorld(World w) {
-        if (w == cGame || w == cNether || w == cEnd) return true;
-
-        String name = w.getName();
-        String base = settings.gameWorld;
-
-        if (name.equals(base)) {
-            cGame = w;
-            return true;
-        }
-        if (name.equals(base + "_nether")) {
-            cNether = w;
-            return true;
-        }
-        if (name.equals(base + "_the_end")) {
-            cEnd = w;
-            return true;
-        }
-
-        return false;
-    }
-
     private Target computeTarget(Location from, TeleportCause cause) {
-        String base = settings.gameWorld;
-
-        World overworld = (cGame != null) ? cGame : Bukkit.getWorld(base);
-        World nether    = (cNether != null) ? cNether : Bukkit.getWorld(base + "_nether");
-        World theEnd    = (cEnd != null) ? cEnd : Bukkit.getWorld(base + "_the_end");
+        World overworld = Bukkit.getWorld(overworldName);
+        World nether    = Bukkit.getWorld(netherName);
+        World theEnd    = Bukkit.getWorld(endName);
 
         if (from == null || from.getWorld() == null) return null;
         World.Environment env = from.getWorld().getEnvironment();
@@ -147,7 +128,12 @@ public final class PortalLinkListener implements Listener {
         if (world == null) return null;
         double cx = Math.max(-SAFE_BORDER_RADIUS, Math.min(SAFE_BORDER_RADIUS, x));
         double cz = Math.max(-SAFE_BORDER_RADIUS, Math.min(SAFE_BORDER_RADIUS, z));
-        double cy = Math.max(5.0, Math.min(250.0, y));
+        double cy = y;
+        if (world.getEnvironment() == World.Environment.NETHER) {
+            cy = Math.max(5.0, Math.min(118.0, y));
+        } else {
+            cy = Math.max(5.0, Math.min(246.0, y));
+        }
         return new Location(world, cx, cy, cz);
     }
 

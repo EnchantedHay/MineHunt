@@ -314,7 +314,7 @@ public final class GameManager {
         }
         msg.broadcast("game.ended");
 
-        final java.util.List<Player> queue = new java.util.ArrayList<>(Bukkit.getOnlinePlayers());
+        final Queue<Player> queue = new LinkedList<>(Bukkit.getOnlinePlayers());
 
         new org.bukkit.scheduler.BukkitRunnable() {
             @Override
@@ -326,7 +326,7 @@ public final class GameManager {
                 }
 
                 for (int i = 0; i < 5 && !queue.isEmpty(); i++) {
-                    Player p = queue.removeFirst();
+                    Player p = queue.poll();
                     if (p == null || !p.isOnline()) continue;
 
                     UUID pid = p.getUniqueId();

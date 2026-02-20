@@ -30,6 +30,8 @@ public final class MessageService {
     private Map<String, Object> curr = new HashMap<>();
     private Map<String, Object> fallback = new HashMap<>();
 
+    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacySection();
+
     public MessageService(Plugin plugin, String prefix, String locale) {
         this.plugin = plugin;
         this.log = plugin.getLogger();
@@ -85,7 +87,7 @@ public final class MessageService {
         String txt = tr(key, args);
         if (txt == null || txt.isEmpty()) return;
         String legacyMsg = prefix + txt;
-        to.sendActionBar(LegacyComponentSerializer.legacySection().deserialize(legacyMsg));
+        to.sendActionBar(LEGACY_SERIALIZER.deserialize(legacyMsg));
     }
 
     public String tr(String key, Object... args) {
@@ -111,9 +113,24 @@ public final class MessageService {
     }
 
     private Map<String, Object> loadAndColorize(String locale) {
-        Map<String, Object> map = loadLangYaml(locale);
-        colorizeMap(map);
-        return map;
+        Map<String, Object> rawMap = loadLangYaml(locale);
+        Map<String, Object> flatMap = new HashMap<>();
+        flattenMap("", rawMap, flatMap);
+        colorizeMap(flatMap);
+        return flatMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void flattenMap(String prefix, Map<String, Object> source, Map<String, Object> dest) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            Object val = entry.getValue();
+            if (val instanceof Map) {
+                flattenMap(key, (Map<String, Object>) val, dest);
+            } else {
+                dest.put(key, val);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -153,14 +170,7 @@ public final class MessageService {
 
     private Object getByPath(Map<String, Object> root, String path) {
         if (root == null) return null;
-        String[] parts = path.split("\\.");
-        Object cur = root;
-        for (String p : parts) {
-            if (!(cur instanceof Map)) return null;
-            cur = ((Map<?, ?>) cur).get(p);
-            if (cur == null) return null;
-        }
-        return cur;
+        return root.get(path);
     }
 
     private Map<String, Object> loadLangYaml(String locale) {
