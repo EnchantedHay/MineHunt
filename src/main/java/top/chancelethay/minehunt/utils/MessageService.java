@@ -113,20 +113,24 @@ public final class MessageService {
     }
 
     private Map<String, Object> loadAndColorize(String locale) {
-        Map<String, Object> rawMap = loadLangYaml(locale);
+        Map<?, Object> rawMap = loadLangYaml(locale);
         Map<String, Object> flatMap = new HashMap<>();
+
         flattenMap("", rawMap, flatMap);
+
         colorizeMap(flatMap);
         return flatMap;
     }
 
     @SuppressWarnings("unchecked")
-    private void flattenMap(String prefix, Map<String, Object> source, Map<String, Object> dest) {
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+    private void flattenMap(String prefix, Map<?, Object> source, Map<String, Object> dest) {
+        for (Map.Entry<?, Object> entry : source.entrySet()) {
+            String keyPart = String.valueOf(entry.getKey());
+            String key = prefix.isEmpty() ? keyPart : prefix + "." + keyPart;
             Object val = entry.getValue();
+
             if (val instanceof Map) {
-                flattenMap(key, (Map<String, Object>) val, dest);
+                flattenMap(key, (Map<?, Object>) val, dest);
             } else {
                 dest.put(key, val);
             }
@@ -144,8 +148,6 @@ public final class MessageService {
                 for (int i = 0; i < list.size(); i++) {
                     list.set(i, color(list.get(i)));
                 }
-            } else if (val instanceof Map) {
-                colorizeMap((Map<String, Object>) val);
             }
         }
     }
@@ -173,7 +175,7 @@ public final class MessageService {
         return root.get(path);
     }
 
-    private Map<String, Object> loadLangYaml(String locale) {
+    private Map<?, Object> loadLangYaml(String locale) {
         File f = new File(plugin.getDataFolder(), "lang" + File.separator + locale + ".yml");
         if (!f.exists()) return Collections.emptyMap();
         try (InputStream in = new FileInputStream(f);

@@ -52,7 +52,7 @@ public final class CommandGuard {
         return false;
     }
 
-    /** 检查地图是否正在重置中（重置期间通常禁止大部分操作） */
+    /** 检查地图是否正在重置中 */
     public boolean blockIfResetting(CommandSender sender) {
         if (worlds.isResetting()) {
             msg.send(sender, "guard.resetting");
