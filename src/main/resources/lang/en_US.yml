@@ -104,8 +104,91 @@ hunter:
 
 menu:
   title: "&aMineHunt Menu"
-  item: "&eGame Menu"
+  item:
+    name: "&eGame Menu"
+    lore1: "&7Right-click to open"
+    lore2: "&7Access teams and stats"
   disabled: "&cMenu is not available right now."
+  cooldown: "&cPlease wait &f{0}s &cbefore reopening."
+  locked:
+    true: "&cLocked"
+    false: "&aUnlocked"
+  state:
+    waiting: "&aWaiting"
+    running: "&cRunning"
+    ending: "&7Ending"
+    resetting: "&eResetting"
+  latejoin:
+    true: "&aAllowed"
+    false: "&cNot Allowed"
+  mode:
+    unknown: "&7Unknown"
+    peaceful: "&aPeaceful"
+    easy: "&aEasy"
+    normal: "&eNormal"
+    hard: "&cHard"
+  status:
+    title: "&aGame Status"
+    line:
+      state: "&7State: &f{state}"
+      participants: "&7Participants: &f{0}"
+      latejoin: "&7Late Join: &f{0}"
+  action:
+    team:
+      name: "&bTeam Selection"
+      lore1: "&7Pick your role"
+      lore2: "&7Switch anytime in lobby"
+    status:
+      name: "&eGame Status"
+      lore1: "&7Live progress and teams"
+      lore2: "&7Auto-updates"
+    stats:
+      name: "&dPersonal Stats"
+      lore1: "&7Wins, games, recent"
+      lore2: "&7Tracked per player"
+    back: "&7Back"
+    close: "&cClose"
+  join:
+    title: "&aJoin Game"
+    auto:
+      name: "&aAuto Assign"
+      lore1: "&7Balanced team"
+    runner:
+      name: "&aJoin Runner"
+      lore1: "&7Run and defeat dragon"
+    hunter:
+      name: "&cJoin Hunter"
+      lore1: "&7Chase runners"
+    spectator:
+      name: "&7Join Spectator"
+      lore1: "&7Watch the round"
+    room:
+      default:
+        name: "&eDefault Room"
+        lore1: "&7Join the main room"
+        lore2: "&7Uses auto balance"
+  team:
+    title: "&bTeam Selection"
+  stats:
+    title: "&dPersonal Stats"
+    line:
+      games: "&7Games: &f{games}"
+      runner_kills: "&7Runner Kills: &f{runner_kills}"
+      hunter_kills: "&7Hunter Kills: &f{hunter_kills}"
+      runner_wins: "&7Runner Wins: &f{runner_wins}"
+      hunter_wins: "&7Hunter Wins: &f{hunter_wins}"
+    recent:
+      line: "&7- {0} &7| {1} &7| {2}"
+      empty: "&7- &8No record"
+    role:
+      hunter: "&cHunter"
+      runner: "&aRunner"
+      spectator: "&7Spectator"
+      lobby: "&7Lobby"
+    result:
+      win: "&aWin"
+      loss: "&cLoss"
+      unknown: "&7Unknown"
   switched: "&aRole switched to &b{0}"
   runner: "&aJoin as Runner"
   hunter: "&cJoin as Hunter"

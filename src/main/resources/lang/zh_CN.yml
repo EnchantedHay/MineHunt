@@ -104,8 +104,91 @@ hunter:
 
 menu:
   title: "&aMineHunt 菜单"
-  item: "&e游戏菜单"
+  item:
+    name: "&e游戏菜单"
+    lore1: "&7右键打开"
+    lore2: "&7快速进入功能"
   disabled: "&c菜单当前不可用。"
+  cooldown: "&c请等待 &f{0}秒 &c后再打开。"
+  locked:
+    true: "&c已锁定"
+    false: "&a未锁定"
+  state:
+    waiting: "&a等待中"
+    running: "&c游戏中"
+    ending: "&7结束中"
+    resetting: "&e重置中"
+  latejoin:
+    true: "&a允许"
+    false: "&c不允许"
+  mode:
+    unknown: "&7未知"
+    peaceful: "&a和平"
+    easy: "&a简单"
+    normal: "&e普通"
+    hard: "&c困难"
+  status:
+    title: "&a当前状态"
+    line:
+      state: "&7状态: &f{state}"
+      participants: "&7参赛人数: &f{0}"
+      latejoin: "&7允许中途加入: &f{0}"
+  action:
+    team:
+      name: "&b选择阵营"
+      lore1: "&7切换你的角色"
+      lore2: "&7仅大厅可用"
+    status:
+      name: "&e当前状态"
+      lore1: "&7实时进度与人数"
+      lore2: "&7自动刷新"
+    stats:
+      name: "&d个人统计"
+      lore1: "&7胜场与记录"
+      lore2: "&7按玩家统计"
+    back: "&7返回"
+    close: "&c关闭"
+  join:
+    title: "&a加入游戏"
+    auto:
+      name: "&a自动分配"
+      lore1: "&7平衡队伍"
+    runner:
+      name: "&a加入速通者"
+      lore1: "&7完成击杀末影龙"
+    hunter:
+      name: "&c加入猎人"
+      lore1: "&7追击速通者"
+    spectator:
+      name: "&7加入旁观"
+      lore1: "&7观看本局"
+    room:
+      default:
+        name: "&e默认房间"
+        lore1: "&7加入主房间"
+        lore2: "&7自动平衡队伍"
+  team:
+    title: "&b选择阵营"
+  stats:
+    title: "&d个人统计"
+    line:
+      games: "&7总局数: &f{games}"
+      runner_kills: "&7速通者击杀猎人: &f{runner_kills}"
+      hunter_kills: "&7猎人击杀速通者: &f{hunter_kills}"
+      runner_wins: "&7速通者胜利数: &f{runner_wins}"
+      hunter_wins: "&7猎人胜利数: &f{hunter_wins}"
+    recent:
+      line: "&7- {0} &7| {1} &7| {2}"
+      empty: "&7- &8暂无记录"
+    role:
+      hunter: "&c猎人"
+      runner: "&a速通者"
+      spectator: "&7旁观"
+      lobby: "&7大厅"
+    result:
+      win: "&a胜利"
+      loss: "&c失败"
+      unknown: "&7未知"
   switched: "&a角色已切换为 &b{0}"
   runner: "&a加入速通者"
   hunter: "&c加入猎人"

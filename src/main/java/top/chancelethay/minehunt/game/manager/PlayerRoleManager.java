@@ -419,6 +419,7 @@ public final class PlayerRoleManager {
             case SPECTATOR -> {
                 safeSetGameMode(p, GameMode.SPECTATOR);
                 safeTeleport(p, calcGameSpawn());
+                p.getInventory().clear();
             }
         }
     }

@@ -131,6 +131,7 @@ public final class LobbyListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onLobbyVoidFall(PlayerMoveEvent e) {
+        if (e.getTo() == null) return;
         if (e.getTo().getBlockY() >= -10) return;
         Player p = e.getPlayer();
 

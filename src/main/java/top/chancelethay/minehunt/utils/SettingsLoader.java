@@ -36,6 +36,7 @@ public final class SettingsLoader {
 
                 // 世界预加载
                 c.getInt("world.preloadRadiusBlocks", 1000),
+                c.getInt("world.worldBorderSize", 5760),
 
                 c.getBoolean("compatibility.useExternalChat", true),
                 c.getBoolean("compatibility.useExternalTab", true),

@@ -19,6 +19,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
@@ -36,7 +37,7 @@ public final class GameWorldManager {
     private final AtomicBoolean resetting = new AtomicBoolean(false);
     private final AtomicBoolean nextPreparing = new AtomicBoolean(false);
     private final AtomicBoolean nextReady     = new AtomicBoolean(false);
-    private volatile int nextProgressPercent = 0;
+    private final AtomicInteger nextProgressPercent = new AtomicInteger(0);
 
     public GameWorldManager(Tasks tasks) {
         this.tasks = tasks;
@@ -47,7 +48,7 @@ public final class GameWorldManager {
     public boolean isResetting() { return resetting.get(); }
     public boolean isNextPreparing() { return nextPreparing.get(); }
     public boolean isNextReady()     { return nextReady.get(); }
-    public int getNextProgressPercent() { return Math.clamp(nextProgressPercent, 0, 100); }
+    public int getNextProgressPercent() { return Math.clamp(nextProgressPercent.get(), 0, 100); }
 
     // ---------- 初始化 ----------
     public void ensureWorlds(Settings s) {
@@ -64,7 +65,7 @@ public final class GameWorldManager {
             return;
         }
         nextReady.set(false);
-        nextProgressPercent = 0;
+        nextProgressPercent.set(0);
 
         tasks.runTasksInSequence(2L,
                 () -> unloadIfLoaded(s.gameWorld + "_next", false),
@@ -168,7 +169,7 @@ public final class GameWorldManager {
                             () -> {
                                 nextPreparing.set(false);
                                 nextReady.set(false);
-                                nextProgressPercent = 100;
+                                nextProgressPercent.set(100);
                                 resetting.set(false);
                                 safeRun(onDone);
                                 log.info("[Worlds] Promote finished.");
@@ -261,7 +262,7 @@ public final class GameWorldManager {
             unloadIfLoaded(baseName + "_nether", true);
             unloadIfLoaded(baseName + "_the_end", true);
 
-            nextProgressPercent = 100;
+            nextProgressPercent.set(100);
             nextReady.set(true);
             nextPreparing.set(false);
         }, 40L);
@@ -288,7 +289,7 @@ public final class GameWorldManager {
         chunky.onGenerationProgress((GenerationProgressEvent ev) -> {
             if (!worldName.equalsIgnoreCase(ev.world())) return;
             int pct = Math.clamp(Math.round(ev.progress()), 0, 100);
-            if (pct > nextProgressPercent) nextProgressPercent = pct;
+            if (pct > nextProgressPercent.get()) nextProgressPercent.set(pct);
         });
 
         chunky.onGenerationComplete((GenerationCompleteEvent ev) -> {

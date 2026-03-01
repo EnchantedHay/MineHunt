@@ -4,6 +4,8 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import top.chancelethay.minehunt.command.*;
+import top.chancelethay.minehunt.menu.LobbyMenuService;
+import top.chancelethay.minehunt.stats.StatsService;
 import top.chancelethay.minehunt.utils.*;
 import top.chancelethay.minehunt.game.listener.*;
 import top.chancelethay.minehunt.game.manager.*;
@@ -32,6 +34,8 @@ public final class MineHuntPlugin extends JavaPlugin {
     private SpawnScatterManager spawnScatterManager;
     private TrackingListener trackingListener;
     private LobbyListener lobbyListener;
+    private StatsService statsService;
+    private LobbyMenuService lobbyMenuService;
 
     // 监听器与指令
     private BoardListener boardListener;
@@ -70,6 +74,12 @@ public final class MineHuntPlugin extends JavaPlugin {
         if (lobbyListener != null) {
             try { lobbyListener.disable(); } catch (Throwable ignored) {}
         }
+        if (lobbyMenuService != null) {
+            try { lobbyMenuService.shutdown(); } catch (Throwable ignored) {}
+        }
+        if (statsService != null) {
+            try { statsService.save(); } catch (Throwable ignored) {}
+        }
         getLogger().info("MineHunt disabled.");
     }
 
@@ -80,6 +90,7 @@ public final class MineHuntPlugin extends JavaPlugin {
         this.settings = SettingsLoader.load(this);
         this.msg = new MessageService(this, settings.messagesPrefix, settings.localeTag);
         this.tasks = new Tasks(this);
+        this.statsService = new StatsService(this, tasks);
 
         // 2. 初始化世界管理并加载必要世界
         this.worldManager = new GameWorldManager(tasks);
@@ -121,12 +132,24 @@ public final class MineHuntPlugin extends JavaPlugin {
         this.boardListener.setPlayerRoleManager(playerRoleManager);
         this.trackingListener.setGameManager(gameManager);
         this.playerRoleManager.setSpawnScatterManager(spawnScatterManager);
+        this.gameManager.setStatsService(statsService);
 
         // 6. 构建上层服务与监听器
         this.lobbyListener = new LobbyListener(
                 settings,
                 gameManager,
                 playerRoleManager,
+                tasks
+        );
+
+        this.lobbyMenuService = new LobbyMenuService(
+                this,
+                settings,
+                msg,
+                gameManager,
+                worldManager,
+                playerRoleManager,
+                statsService,
                 tasks
         );
 
@@ -137,11 +160,14 @@ public final class MineHuntPlugin extends JavaPlugin {
                 trackingListener,
                 settings,
                 playerRoleManager,
-                tasks
+                tasks,
+                lobbyMenuService,
+                statsService
         );
 
         // 7. 完成最终连接
         this.gameManager.setLobbyCoordinator(lobbyListener);
+        this.gameManager.setLobbyMenuService(lobbyMenuService);
 
         // 8. 激活服务监听
         this.lobbyListener.enable();
@@ -182,6 +208,7 @@ public final class MineHuntPlugin extends JavaPlugin {
         pm.registerEvents(this.portalLinkListener, this);
 
         pm.registerEvents(this.playerLifecycleListener, this);
+        pm.registerEvents(this.lobbyMenuService, this);
 
         this.miscListener = new MiscListener(
                 gameManager,

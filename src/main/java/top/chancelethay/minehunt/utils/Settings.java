@@ -32,6 +32,7 @@ public final class Settings {
 
     // 性能优化
     public final int worldPreloadRadiusBlocks;
+    public final int worldBorderSize;
 
     public final boolean useExternalChat;
     public final boolean useExternalTab;
@@ -56,6 +57,7 @@ public final class Settings {
             int hunterCenterScatterRadius,
             int scatterMaxTries,
             int worldPreloadRadiusBlocks,
+            int worldBorderSize,
             boolean useExternalChat,
             boolean useExternalTab,
             boolean disablePrivateChat
@@ -81,6 +83,7 @@ public final class Settings {
         this.scatterMaxTries = scatterMaxTries;
 
         this.worldPreloadRadiusBlocks = worldPreloadRadiusBlocks;
+        this.worldBorderSize = worldBorderSize;
         this.useExternalChat = useExternalChat;
         this.useExternalTab = useExternalTab;
 

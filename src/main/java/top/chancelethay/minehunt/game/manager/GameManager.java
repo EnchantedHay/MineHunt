@@ -10,6 +10,8 @@ import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.WinReason;
 import top.chancelethay.minehunt.game.listener.LobbyListener;
 import top.chancelethay.minehunt.game.listener.TrackingListener;
+import top.chancelethay.minehunt.menu.LobbyMenuService;
+import top.chancelethay.minehunt.stats.StatsService;
 import top.chancelethay.minehunt.utils.MessageService;
 import top.chancelethay.minehunt.utils.Tasks;
 
@@ -29,6 +31,8 @@ public final class GameManager {
     private final GameWorldManager gameWorldManager;
     private final Tasks tasks;
     private LobbyListener lobbyListener;
+    private StatsService statsService;
+    private LobbyMenuService lobbyMenuService;
     private final SpawnScatterManager spawnScatterManager;
     private final TrackingListener trackingListener;
     private PlayerRoleManager playerRoleManager;
@@ -67,6 +71,14 @@ public final class GameManager {
         this.lobbyListener = lobbyListener;
     }
 
+    public void setStatsService(StatsService statsService) {
+        this.statsService = statsService;
+    }
+
+    public void setLobbyMenuService(LobbyMenuService lobbyMenuService) {
+        this.lobbyMenuService = lobbyMenuService;
+    }
+
     public GameState getState() {
         return state;
     }
@@ -77,6 +89,14 @@ public final class GameManager {
 
     public void lockRoles(boolean on) {
         this.rolesLocked = on;
+    }
+
+    public int getCountdownLeft() {
+        return countdownLeft;
+    }
+
+    public long getRoundStartMillis() {
+        return roundStartMillis;
     }
 
     /* ==============================================================================================================
@@ -164,7 +184,7 @@ public final class GameManager {
             gameWorld.setGameRule(GameRules.SPECTATORS_GENERATE_CHUNKS, false);
             WorldBorder border = gameWorld.getWorldBorder();
             border.setCenter(0.0, 0.0);
-            border.setSize(11520.0);
+            border.setSize(settings.worldBorderSize * 2);
 
             for (String suffix : new String[]{"_nether", "_the_end"}) {
                 World dim = Bukkit.getWorld(settings.gameWorld + suffix);
@@ -172,7 +192,7 @@ public final class GameManager {
                     dim.setGameRule(GameRules.LOCATOR_BAR, false);
                     dim.setGameRule(GameRules.SPECTATORS_GENERATE_CHUNKS, false);
                     dim.getWorldBorder().setCenter(0.0, 0.0);
-                    dim.getWorldBorder().setSize(11520.0);
+                    dim.getWorldBorder().setSize(settings.worldBorderSize * 2);
                 }
             }
         }
@@ -208,7 +228,6 @@ public final class GameManager {
                 }
             }, 20L, 20L);
 
-            // 应用开局属性（生存模式、物品等）
             for (Player p : Bukkit.getOnlinePlayers()) {
                 playerRoleManager.applyGameStartAttributes(p);
             }
@@ -249,6 +268,8 @@ public final class GameManager {
     }
 
     public void tryEnd(WinReason reason, Location contextLoc) {
+        GameState st = this.state;
+        if (st != GameState.RUNNING && st != GameState.COUNTDOWN) return;
         if (this.ending) {return;}
         this.ending = true;
         tasks.run(() -> end(reason, contextLoc));
@@ -270,6 +291,10 @@ public final class GameManager {
         if (disconnectWatchdog != null) {
             tasks.cancel(disconnectWatchdog);
             disconnectWatchdog = null;
+        }
+
+        if (statsService != null && playerRoleManager != null) {
+            statsService.recordRoundEnd(new java.util.HashMap<>(playerRoleManager.roleOf), reason);
         }
 
         state = GameState.ENDED;
@@ -401,6 +426,17 @@ public final class GameManager {
 
         if (lobbyListener != null) {
             lobbyListener.autoAssignAllLobbyPlayers();
+        }
+
+        if (lobbyMenuService != null) {
+            tasks.later(() -> {
+                World lobbyWorld = Bukkit.getWorld(settings.lobbyWorld);
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p == null || !p.isOnline()) continue;
+                    if (lobbyWorld != null && p.getWorld() != lobbyWorld) continue;
+                    lobbyMenuService.giveLobbyItem(p);
+                }
+            }, 2L);
         }
 
         tasks.later(this::autoStartCheckAndTrigger, 40L);

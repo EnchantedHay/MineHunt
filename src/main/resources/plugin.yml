@@ -11,6 +11,8 @@ commands:
 permissions:
   minehunt.play:
     default: true
+  minehunt.menu:
+    default: true
   minehunt.admin:
     default: op
 softdepend: ["PlaceholderAPI"]

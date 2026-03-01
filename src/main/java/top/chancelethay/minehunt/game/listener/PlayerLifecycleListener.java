@@ -8,11 +8,13 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
+import top.chancelethay.minehunt.menu.LobbyMenuService;
 import top.chancelethay.minehunt.utils.Settings;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.manager.GameManager;
 import top.chancelethay.minehunt.game.manager.PlayerRoleManager;
+import top.chancelethay.minehunt.stats.StatsService;
 import top.chancelethay.minehunt.utils.MessageService;
 import top.chancelethay.minehunt.utils.Tasks;
 
@@ -32,6 +34,8 @@ public final class PlayerLifecycleListener implements Listener {
     private final Settings settings;
     private final PlayerRoleManager playerRoleManager;
     private final Tasks tasks;
+    private final LobbyMenuService lobbyMenuService;
+    private final StatsService statsService;
 
 
     public PlayerLifecycleListener(GameManager gameManager,
@@ -40,7 +44,9 @@ public final class PlayerLifecycleListener implements Listener {
                                    TrackingListener trackingListener,
                                    Settings settings,
                                    PlayerRoleManager playerRoleManager,
-                                   Tasks tasks) {
+                                   Tasks tasks,
+                                   LobbyMenuService lobbyMenuService,
+                                   StatsService statsService) {
         this.gameManager = gameManager;
         this.msg = msg;
         this.lobbyListener = lobbyListener;
@@ -48,6 +54,8 @@ public final class PlayerLifecycleListener implements Listener {
         this.settings = settings;
         this.playerRoleManager = playerRoleManager;
         this.tasks = tasks;
+        this.lobbyMenuService = lobbyMenuService;
+        this.statsService = statsService;
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -111,7 +119,31 @@ public final class PlayerLifecycleListener implements Listener {
                 }
                 default -> playerRoleManager.setRole(p, PlayerRole.LOBBY);
             }
+
+            if (lobbyMenuService != null) {
+                if (isLobbyWorld(p.getWorld()) && (st == GameState.LOBBY || st == GameState.COUNTDOWN)) {
+                    lobbyMenuService.giveLobbyItem(p);
+                } else {
+                    lobbyMenuService.removeLobbyItem(p);
+                }
+            }
         });
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onWorldChange(PlayerChangedWorldEvent e) {
+        Player p = e.getPlayer();
+        if (lobbyMenuService == null) return;
+        GameState st = gameManager.getState();
+        if (isLobbyWorld(p.getWorld()) && (st == GameState.LOBBY || st == GameState.COUNTDOWN)) {
+            lobbyMenuService.giveLobbyItem(p);
+        } else {
+            lobbyMenuService.removeLobbyItem(p);
+        }
+    }
+
+    private boolean isLobbyWorld(org.bukkit.World world) {
+        return world != null && world.getName().equalsIgnoreCase(settings.lobbyWorld);
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -156,6 +188,14 @@ public final class PlayerLifecycleListener implements Listener {
         final PlayerRole roleNow = playerRoleManager.getRole(id);
 
         playerRoleManager.rememberGameLocationIfRelevant(p);
+
+        if (state == GameState.RUNNING) {
+            Player killer = p.getKiller();
+            if (killer != null && statsService != null) {
+                PlayerRole killerRole = playerRoleManager.getRole(killer.getUniqueId());
+                statsService.recordKill(killer.getUniqueId(), killerRole, roleNow);
+            }
+        }
 
         if (state == GameState.RUNNING && roleNow == PlayerRole.RUNNER) {
             playerRoleManager.eliminateAndCheckEnd(id, roleNow, p, p.getName());

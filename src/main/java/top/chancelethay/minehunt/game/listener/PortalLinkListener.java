@@ -27,7 +27,7 @@ public final class PortalLinkListener implements Listener {
     private static final double SAFE_BORDER_RADIUS = 5400.0;
 
     public PortalLinkListener(Settings settings) {
-        this.settings = settings;
+        setSettings(settings);
     }
 
     public void setSettings(Settings settings) {

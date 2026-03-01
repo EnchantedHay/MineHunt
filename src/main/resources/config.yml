@@ -23,6 +23,7 @@ scatter:
 
 world:
   preloadRadiusBlocks: 640
+  worldBorderSize: 5760
 
 messages:
   prefix: "&7[&aMineHunt&7]&r "

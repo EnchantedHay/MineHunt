@@ -1,0 +1,153 @@
+menu:
+  openInLobbyOnly: true
+  cooldownMillis: 1000
+  updateTicks: 20
+  sounds:
+    open: UI_BUTTON_CLICK
+    click: UI_BUTTON_CLICK
+    deny: BLOCK_NOTE_BLOCK_BASS
+  lobbyItem:
+    enabled: true
+    slot: 4
+    material: NETHER_STAR
+    name: "lang:menu.item.name"
+    lore:
+      - "lang:menu.item.lore1"
+      - "lang:menu.item.lore2"
+  permissions:
+    open_main: "minehunt.menu"
+    open_team: "minehunt.menu"
+    join_auto: "minehunt.play"
+    join_runner: "minehunt.play"
+    join_hunter: "minehunt.play"
+    join_spectator: "minehunt.play"
+    back: "minehunt.menu"
+    close: "minehunt.menu"
+
+menus:
+  main:
+    title: "lang:menu.title"
+    size: 27
+    decorations:
+      border:
+        material: BLACK_STAINED_GLASS_PANE
+        name: " "
+        slots:
+          - "0-8"
+          - "18-26"
+          - "9"
+          - "17"
+      status:
+        material: PAPER
+        slot: 12
+        name: "lang:menu.status.title"
+        lore:
+          - "lang:menu.status.line.state"
+          - "{participants_line}"
+          - "{latejoin_line}"
+      stats:
+        material: COMPASS
+        slot: 16
+        name: "lang:menu.stats.title"
+        lore:
+          - "lang:menu.stats.line.games"
+          - "lang:menu.stats.line.hunter_wins"
+          - "lang:menu.stats.line.runner_wins"
+          - "lang:menu.stats.line.hunter_kills"
+          - "lang:menu.stats.line.runner_kills"
+    actions:
+      open_team:
+        slot: 10
+        material: IRON_SWORD
+        name: "lang:menu.action.team.name"
+        lore:
+          - "lang:menu.action.team.lore1"
+          - "lang:menu.action.team.lore2"
+      close:
+        slot: 22
+        material: BARRIER
+        name: "lang:menu.action.close"
+
+  join:
+    title: "lang:menu.join.title"
+    size: 27
+    decorations:
+      border:
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
+        name: " "
+        slots:
+          - "0-8"
+          - "18-26"
+          - "9"
+          - "17"
+    actions:
+      join_auto:
+        slot: 10
+        material: OAK_DOOR
+        name: "lang:menu.join.auto.name"
+        lore:
+          - "lang:menu.join.auto.lore1"
+      join_runner:
+        slot: 12
+        material: DIAMOND_BOOTS
+        name: "lang:menu.join.runner.name"
+        lore:
+          - "lang:menu.join.runner.lore1"
+      join_hunter:
+        slot: 14
+        material: IRON_AXE
+        name: "lang:menu.join.hunter.name"
+        lore:
+          - "lang:menu.join.hunter.lore1"
+      join_spectator:
+        slot: 16
+        material: GLASS_BOTTLE
+        name: "lang:menu.join.spectator.name"
+        lore:
+          - "lang:menu.join.spectator.lore1"
+      back:
+        slot: 22
+        material: ARROW
+        name: "lang:menu.action.back"
+
+  team:
+    title: "lang:menu.team.title"
+    size: 27
+    decorations:
+      border:
+        material: LIGHT_GRAY_STAINED_GLASS_PANE
+        name: " "
+        slots:
+          - "0-8"
+          - "18-26"
+          - "9"
+          - "17"
+    actions:
+      join_runner:
+        slot: 10
+        material: DIAMOND_BOOTS
+        name: "lang:menu.join.runner.name"
+        lore:
+          - "lang:menu.join.runner.lore1"
+      join_auto:
+        slot: 12
+        material: OAK_DOOR
+        name: "lang:menu.join.auto.name"
+        lore:
+          - "lang:menu.join.auto.lore1"
+      join_hunter:
+        slot: 14
+        material: IRON_AXE
+        name: "lang:menu.join.hunter.name"
+        lore:
+          - "lang:menu.join.hunter.lore1"
+      join_spectator:
+        slot: 16
+        material: GLASS_BOTTLE
+        name: "lang:menu.join.spectator.name"
+        lore:
+          - "lang:menu.join.spectator.lore1"
+      back:
+        slot: 22
+        material: ARROW
+        name: "lang:menu.action.back"
