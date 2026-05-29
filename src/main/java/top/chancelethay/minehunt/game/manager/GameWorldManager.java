@@ -20,7 +20,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * 游戏世界管理器
@@ -39,18 +41,30 @@ public final class GameWorldManager {
     private final AtomicBoolean nextReady     = new AtomicBoolean(false);
     private final AtomicInteger nextProgressPercent = new AtomicInteger(0);
 
+    // 用于防止跨轮次的 Chunky 回调误触发
+    private final AtomicInteger generationId = new AtomicInteger(0);
+    // 跟踪 promoteWhenReady 的轮询任务，防止多次调用时叠加
+    private final AtomicReference<BukkitTask> promoteTask = new AtomicReference<>();
+    // promoteWhenReady 超时（10 分钟）
+    private static final int PROMOTE_TIMEOUT_TICKS = 20 * 60 * 10;
+
     public GameWorldManager(Tasks tasks) {
         this.tasks = tasks;
         this.log = tasks.getPlugin().getLogger();
     }
 
     // ---------- 状态查询 ----------
+    /** 是否正处于地图切换（promote）阶段——即正在卸载旧世界、移动 {@code _next} 文件夹。 */
     public boolean isResetting() { return resetting.get(); }
+    /** 下一局世界是否正在后台预生成中。 */
     public boolean isNextPreparing() { return nextPreparing.get(); }
+    /** 下一局世界是否已预生成完毕、可随时切换。 */
     public boolean isNextReady()     { return nextReady.get(); }
+    /** 下一局世界的预生成进度（0–100）。 */
     public int getNextProgressPercent() { return Math.clamp(nextProgressPercent.get(), 0, 100); }
 
     // ---------- 初始化 ----------
+    /** 插件启用时调用：确保大厅世界与游戏世界（主世界/下界/末地）均已加载，缺失则创建。 */
     public void ensureWorlds(Settings s) {
         ensureWorld(s.lobbyWorld, World.Environment.NORMAL);
         ensureWorld(s.gameWorld, World.Environment.NORMAL);
@@ -60,6 +74,14 @@ public final class GameWorldManager {
 
     // ========== 后台构建 _next 世界 ==========
 
+    /**
+     * 后台异步预生成下一局的三个维度世界（{@code _next} / {@code _next_nether} / {@code _next_the_end}）。
+     *
+     * <p>用 {@code nextPreparing} 的 CAS 保证同一时刻只有一次预生成在进行。完成后会立即卸载这些世界以释放内存，
+     * 并置位 {@code nextReady}，等待 {@link #promoteWhenReady} 执行真正的切换。
+     *
+     * @param randomSeed 为真时为新世界生成随机种子，否则使用默认种子
+     */
     public void prepareNextWorlds(Settings s, boolean randomSeed) {
         if (!nextPreparing.compareAndSet(false, true)) {
             return;
@@ -111,29 +133,47 @@ public final class GameWorldManager {
 
     // ========== 执行地图切换 (Promote) ==========
 
+    /**
+     * 将已预生成的 {@code _next} 世界提升为当前游戏世界。
+     *
+     * <p>若下一局已就绪则立即切换；否则启动一个轮询任务等待其就绪，最多等待 10 分钟
+     * （{@link #PROMOTE_TIMEOUT_TICKS}）后放弃。切换完成后回调 {@code onDone}。
+     */
     public void promoteWhenReady(Settings s, Runnable onDone) {
         if (nextReady.get()) {
             doPromoteNow(s, onDone);
             return;
         }
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (resetting.get()) {
-                    this.cancel();
-                    return;
-                }
+        // 取消上一个尚未结束的轮询任务
+        BukkitTask old = promoteTask.getAndSet(null);
+        if (old != null) tasks.cancel(old);
 
-                if (nextReady.get()) {
-                    this.cancel();
-                    doPromoteNow(s, onDone);
-                }
+        final int[] elapsedTicks = {0};
+        BukkitTask task = tasks.repeat(() -> {
+            elapsedTicks[0] += 40;
+            if (resetting.get()) {
+                BukkitTask t = promoteTask.getAndSet(null);
+                if (t != null) tasks.cancel(t);
+                return;
             }
-        }.runTaskTimer(tasks.getPlugin(), 40L, 40L);
+            if (elapsedTicks[0] >= PROMOTE_TIMEOUT_TICKS) {
+                log.severe("[Worlds] promoteWhenReady timed out after 10 minutes! Aborting.");
+                BukkitTask t = promoteTask.getAndSet(null);
+                if (t != null) tasks.cancel(t);
+                return;
+            }
+            if (nextReady.get()) {
+                BukkitTask t = promoteTask.getAndSet(null);
+                if (t != null) tasks.cancel(t);
+                doPromoteNow(s, onDone);
+            }
+        }, 40L, 40L);
+        promoteTask.set(task);
         log.info("[Worlds] Waiting for next world generation to finalize...");
     }
 
+    /** 立即执行切换：取消 Chunky 任务、卸载新旧世界，随后异步移动文件夹（{@link #startAsyncMove}）。 */
     private void doPromoteNow(Settings s, Runnable onDone) {
         if (!resetting.compareAndSet(false, true)) return;
 
@@ -152,6 +192,7 @@ public final class GameWorldManager {
         );
     }
 
+    /** 在异步线程删除旧世界文件夹、把 {@code _next} 移动为正式名称，再回主线程重新加载并复位所有标志。 */
     private void startAsyncMove(Settings s, Runnable onDone) {
         tasks.async(() -> {
             try {
@@ -283,16 +324,21 @@ public final class GameWorldManager {
         final String worldName = world.getName();
         final int r = Math.max(0, radiusBlocks);
 
+        // 递增 generation ID；旧回调持有旧 ID，触发时会跳过
+        final int thisGeneration = generationId.incrementAndGet();
+
         boolean started = chunky.startTask(worldName, "circle", 0.0, 0.0, r, r, "concentric");
         if (!started) throw new IllegalStateException("Chunky startTask returned false for world " + worldName);
 
         chunky.onGenerationProgress((GenerationProgressEvent ev) -> {
+            if (generationId.get() != thisGeneration) return;
             if (!worldName.equalsIgnoreCase(ev.world())) return;
             int pct = Math.clamp(Math.round(ev.progress()), 0, 100);
             if (pct > nextProgressPercent.get()) nextProgressPercent.set(pct);
         });
 
         chunky.onGenerationComplete((GenerationCompleteEvent ev) -> {
+            if (generationId.get() != thisGeneration) return;
             if (!worldName.equalsIgnoreCase(ev.world())) return;
             tasks.run(() -> {
                 try { world.save(); } catch (Throwable ignored) {}

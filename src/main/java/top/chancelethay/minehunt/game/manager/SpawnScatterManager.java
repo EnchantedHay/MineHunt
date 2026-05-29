@@ -13,8 +13,13 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
 /**
- * 散点服务
- * 负责游戏开始时为玩家计算和分配随机出生点。
+ * 出生点散布服务。
+ *
+ * <p>开局时为玩家计算并分配出生点：逃亡者沿以世界出生点为中心的圆环散开（半径/抖动由配置决定，
+ * 彼此间保持最小间距），猎人则集中散布在另一处“猎人中心”附近，从而拉开追逐距离。
+ *
+ * <p>选点过程全部基于异步加载区块（{@code getChunkAtAsync}）完成，避免在主线程同步加载地形造成卡顿；
+ * 选点时会过滤水域、危险方块与不安全高度。
  */
 public final class SpawnScatterManager {
 
@@ -41,7 +46,10 @@ public final class SpawnScatterManager {
     }
 
     /**
-     * 执行异步散点传送。
+     * 异步为所有逃亡者与猎人选点并传送，全部完成后回调 {@code onComplete}（在主线程执行）。
+     *
+     * @param world      目标世界，为 {@code null} 时回退到配置的游戏世界
+     * @param onComplete 传送完成后的回调，可为 {@code null}
      */
     public void performSpawnsAsync(World world, Runnable onComplete) {
         final World w = (world == null) ? Bukkit.getWorld(settings.gameWorld) : world;
@@ -146,6 +154,10 @@ public final class SpawnScatterManager {
         });
     }
 
+    /**
+     * 同步地在 {@code center} 周围 {@code radius} 范围内尝试找一个安全落点（最多 10 次）。
+     * 找不到则原样返回 {@code center}。用于中途加入等需要即时定位的场景。
+     */
     public Location findSafeSpotNearSync(Location center, int radius) {
         if (center == null || center.getWorld() == null) return center;
         World w = center.getWorld();
@@ -200,6 +212,10 @@ public final class SpawnScatterManager {
                     attemptFindCenterRecursively(world, cx, cz, rMin, rMax, triesLeft - 1, callback);
                 }
             });
+        }).exceptionally(ex -> {
+            ex.printStackTrace();
+            tasks.run(() -> callback.accept(fallbackWorldSpawn(world)));
+            return null;
         });
     }
 
@@ -224,6 +240,10 @@ public final class SpawnScatterManager {
     //  辅助方法
     // =================================================================================
 
+    /**
+     * 把给定 (x,z) 解析为一个安全的站立点：取地表最高方块，校验非水域、地面坚实不危险、高度合理、
+     * 且头顶有两格净空。任一条件不满足返回 {@code null}（表示此点不可用）。
+     */
     private Location toTopSafe(World world, int x, int z) {
         int surfaceY = world.getHighestBlockYAt(x, z);
         Biome biome = world.getBiome(x, surfaceY, z);

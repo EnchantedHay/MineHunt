@@ -58,6 +58,11 @@ public final class PlayerLifecycleListener implements Listener {
         this.statsService = statsService;
     }
 
+    /**
+     * 玩家加入时按「当前游戏阶段 × 既有角色」恢复其身份：
+     * 进行中的参赛者尝试用剩余宽限时间断线重连，超时则转旁观；结算阶段进旁观；
+     * 大厅/倒计时阶段恢复原队或按需自动分配。最后据所在世界发放/收回大厅菜单物品。
+     */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onJoin(PlayerJoinEvent e) {
         final Player p = e.getPlayer();
@@ -121,7 +126,7 @@ public final class PlayerLifecycleListener implements Listener {
             }
 
             if (lobbyMenuService != null) {
-                if (isLobbyWorld(p.getWorld()) && (st == GameState.LOBBY || st == GameState.COUNTDOWN)) {
+                if (isLobbyWorld(p.getWorld())) {
                     lobbyMenuService.giveLobbyItem(p);
                 } else {
                     lobbyMenuService.removeLobbyItem(p);
@@ -134,8 +139,7 @@ public final class PlayerLifecycleListener implements Listener {
     public void onWorldChange(PlayerChangedWorldEvent e) {
         Player p = e.getPlayer();
         if (lobbyMenuService == null) return;
-        GameState st = gameManager.getState();
-        if (isLobbyWorld(p.getWorld()) && (st == GameState.LOBBY || st == GameState.COUNTDOWN)) {
+        if (isLobbyWorld(p.getWorld())) {
             lobbyMenuService.giveLobbyItem(p);
         } else {
             lobbyMenuService.removeLobbyItem(p);
@@ -146,6 +150,10 @@ public final class PlayerLifecycleListener implements Listener {
         return world != null && world.getName().equalsIgnoreCase(settings.lobbyWorld);
     }
 
+    /**
+     * 玩家退出时的处理：进行中的参赛者进入断线宽限期（{@code suspendPlayer}）并广播倒计时，
+     * 大厅/倒计时阶段则直接清除其数据，并触发开局/人数判定。
+     */
     @EventHandler(priority = EventPriority.NORMAL)
     public void onQuit(PlayerQuitEvent e) {
         final Player p = e.getPlayer();
@@ -179,6 +187,10 @@ public final class PlayerLifecycleListener implements Listener {
         });
     }
 
+    /**
+     * 玩家死亡：记录击杀统计；逃亡者死亡触发淘汰与胜负判定；随后稍延迟自动重生
+     * （重生后的身份切换由 {@link #onRespawn} 处理）。
+     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(PlayerDeathEvent e) {
         final Player p = e.getEntity();
@@ -206,6 +218,7 @@ public final class PlayerLifecycleListener implements Listener {
         }, 3L);
     }
 
+    /** 重生路由：进行中的猎人原地复活（保留进度），逃亡者转旁观；非进行阶段回到旁观/大厅。 */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onRespawn(PlayerRespawnEvent e) {
         final Player p = e.getPlayer();
@@ -233,6 +246,7 @@ public final class PlayerLifecycleListener implements Listener {
         });
     }
 
+    /** 禁止猎人丢弃追踪指南针（避免被逃亡者捡到或弄丢）。 */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.NORMAL)
     public void onDropHunterCompass(PlayerDropItemEvent e) {
         if (gameManager.getState() != GameState.RUNNING) return;

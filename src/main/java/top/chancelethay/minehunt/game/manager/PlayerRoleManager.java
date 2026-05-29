@@ -172,6 +172,7 @@ public final class PlayerRoleManager {
         lastGameLocation.remove(id);
     }
 
+    /** 清空一整局的所有玩家状态（角色映射、缓存、掉线预算、位置记忆等），供回到大厅时调用。 */
     public void resetRoundState() {
         graceBudgets.clear();
         activeDeadlines.clear();
@@ -182,7 +183,7 @@ public final class PlayerRoleManager {
         runnerCache.clear();
         hunterCache.clear();
         spectatorCache.clear();
-        try { boardListener.rebuildSidebarLines(); } catch (Throwable ignored) {}
+        try { boardListener.markDirty(); } catch (Throwable ignored) {}
     }
 
     // ---------- 状态查询 ----------
@@ -244,7 +245,13 @@ public final class PlayerRoleManager {
     }
 
     /**
-     * 设置玩家角色并应用相关状态。
+     * 设置玩家角色并据此应用游戏状态（传送、游戏模式、背包等，见 {@code applyLogicalStateForRole}）。
+     *
+     * <p>当新旧角色相同时仅在必要场景才重新应用，避免无谓的传送/清背包。
+     *
+     * @param isIngameRespawn 是否为对局内重生（如猎人复活）；为真时保留背包与成就
+     * @param updateSidebar   是否刷新记分板侧边栏
+     * @param isRejoining     是否为断线重连恢复；为真时跳过背包重置，沿用此前进度
      */
     public void setRole(Player p, PlayerRole newRole, boolean isIngameRespawn, boolean updateSidebar, boolean isRejoining) {
         if (p == null) return;
@@ -260,7 +267,7 @@ public final class PlayerRoleManager {
             GameState st = gameManager.getState();
             boolean mustReapply = (!roleOf.containsKey(id)) ||
                     (st == GameState.RUNNING && (newRole == PlayerRole.HUNTER || newRole == PlayerRole.RUNNER || newRole == PlayerRole.SPECTATOR))
-                    || (st == GameState.ENDED && (newRole == PlayerRole.SPECTATOR || newRole == PlayerRole.LOBBY));
+                    || ((st == GameState.ENDED || st == GameState.RESETTING) && (newRole == PlayerRole.SPECTATOR || newRole == PlayerRole.LOBBY));
             if (!mustReapply) return;
         }
 
@@ -272,10 +279,16 @@ public final class PlayerRoleManager {
         try { boardListener.movePlayerBetweenTeams(p, oldRole, newRole, updateSidebar); } catch (Throwable ignored) {}
         tasks.later(() -> boardListener.applySinglePlayerColor(p), 1L);
         if (updateSidebar) {
-            try { boardListener.rebuildSidebarLines(); } catch (Throwable ignored) {}
+            try { boardListener.markDirty(); } catch (Throwable ignored) {}
         }
     }
 
+    /**
+     * 角色状态机的核心：依据「目标角色 × 当前游戏阶段」决定玩家的落点、游戏模式、是否清理背包等。
+     *
+     * <p>对局进行中加入猎人/逃亡者会区分首次加入、断线重连与对局内重生三种情形；
+     * 逃亡者首次中途加入会被空投到队友附近并获得短暂无敌。非进行阶段则一律送回大厅。
+     */
     private void applyLogicalStateForRole(Player p, PlayerRole newRole, boolean isIngameRespawn, boolean isRejoining) {
         GameState st = gameManager.getState();
         switch (newRole) {
@@ -320,14 +333,12 @@ public final class PlayerRoleManager {
                         tasks.later(() -> {
                             if (p.isOnline()) {
                                 p.setInvulnerable(false);
-                                msg.send(p, "&cgame.invulnerable_expired");
+                                msg.send(p, "game.late_join.invulnerable_expired");
                             }
                         }, 200L);
                     } else {
                         safeTeleport(p, calcResumeLocation(p));
                     }
-
-                    safeTeleport(p, calcResumeLocation(p));
                     safeSetGameMode(p, GameMode.SURVIVAL);
 
                     if (!isRejoining) {
@@ -340,7 +351,8 @@ public final class PlayerRoleManager {
                 }
             }
             case SPECTATOR -> {
-                if (st == GameState.LOBBY || st == GameState.COUNTDOWN) {
+                if (st == GameState.LOBBY || st == GameState.COUNTDOWN || st == GameState.RESETTING) {
+                    // RESETTING 阶段地图正在切换，旁观者也应留在大厅而非已废弃的游戏世界。
                     safeTeleport(p, calcLobbySpawn());
                     safeSetGameMode(p, GameMode.ADVENTURE);
                     resetPlayerVitals(p);
@@ -388,14 +400,14 @@ public final class PlayerRoleManager {
             try { boardListener.removeFromTeam(p.getName(), roleToRemove); } catch (Throwable ignored) {}
         }
         try { boardListener.clearPlayerDisplayOverrides(p); } catch (Throwable ignored) {}
-        try { boardListener.rebuildSidebarLines(); } catch (Throwable ignored) {}
+        try { boardListener.markDirty(); } catch (Throwable ignored) {}
     }
 
     public void forceAllOnlineToLobbyRole() {
         for (Player p : Bukkit.getOnlinePlayers()) setRole(p, PlayerRole.LOBBY);
     }
     public void refreshBoard() {
-        try { boardListener.rebuildSidebarLines(); } catch (Throwable ignored) {}
+        try { boardListener.markDirty(); } catch (Throwable ignored) {}
     }
 
     /**
@@ -424,6 +436,7 @@ public final class PlayerRoleManager {
         }
     }
 
+    /** 按当前两队人数挑选使阵营更均衡的角色：人多的一方不再增员；相等时随机。 */
     public PlayerRole pickBalancedRole() {
         int hunters = countAliveHunters();
         int runners = countAliveRunners();
@@ -461,7 +474,7 @@ public final class PlayerRoleManager {
 
     private Location calcLobbySpawn() {
         World w = Bukkit.getWorld(lobbyWorldName);
-        return (w != null) ? w.getSpawnLocation().clone() : null;
+        return settings.getLobbySpawn(w);
     }
 
     private Location calcGameSpawn() {
@@ -513,6 +526,10 @@ public final class PlayerRoleManager {
         resetPlayerVitals(p, false);
     }
 
+    /**
+     * 重置玩家的生命体征：灭火、解冻、回满血/饱食、清空药水效果与经验。
+     * 当 {@code isIngameRespawn} 为 {@code false} 时还会清空背包、末影箱并撤销全部成就进度。
+     */
     public void resetPlayerVitals(Player p, boolean isIngameRespawn) {
         try {
             p.setFireTicks(0);
@@ -544,6 +561,15 @@ public final class PlayerRoleManager {
 
     private void safeSetGameMode(Player p, GameMode gm) { try { p.setGameMode(gm); } catch (Throwable ignored) {} }
 
+    /**
+     * 淘汰一名玩家（转为旁观者）并随即检查是否触发对局结束。
+     *
+     * <p>逃亡者被淘汰后若全员阵亡 → 猎人获胜；猎人被淘汰后若全员阵亡 → 逃亡者获胜。
+     * 同时兼容在线（直接 {@code setRole}）与离线超时（仅改映射与缓存）两种淘汰来源。
+     *
+     * @param onlinePlayer        若玩家在线则传入其实例，否则为 {@code null}
+     * @param broadcastNameIfAny  需要广播死亡消息时的玩家名，可为 {@code null}
+     */
     public void eliminateAndCheckEnd(UUID id, PlayerRole roleBefore, Player onlinePlayer, String broadcastNameIfAny) {
         if (id == null) {
             if (onlinePlayer == null) return;

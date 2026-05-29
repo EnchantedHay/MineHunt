@@ -17,8 +17,13 @@ import top.chancelethay.minehunt.utils.Tasks;
 import java.util.UUID;
 
 /**
- * 大厅服务
- * 负责大厅世界的规则保护、玩家管理以及自动队伍分配。
+ * 大厅监听器与协调器。
+ *
+ * <p>两类职责：
+ * <ul>
+ *   <li>大厅世界保护——锁定时间/天气、禁止刷怪、取消 PVP 与摔落/虚空伤害、掉入虚空自动拉回出生点；</li>
+ *   <li>玩家入场分配——按需把大厅玩家自动均衡分配到两队，并在人数/队伍变化时通知 {@link GameManager} 触发自动开局判定。</li>
+ * </ul>
  */
 public final class LobbyListener implements Listener {
 
@@ -71,6 +76,7 @@ public final class LobbyListener implements Listener {
         return false;
     }
 
+    /** 给大厅世界套用一组“静态展厅”式游戏规则：固定为白天、无天气、不刷怪、无火焰蔓延与生物破坏。 */
     private void applyLobbyRules(World w) {
         try {
             w.setGameRule(GameRules.ADVANCE_TIME, false);
@@ -152,7 +158,7 @@ public final class LobbyListener implements Listener {
     private void teleportToLobbySpawn(Player p) {
         World lobby = (LobbyWorldName != null) ? LobbyWorldName : Bukkit.getWorld(settings.lobbyWorld);
         if (lobby != null) {
-            p.teleport(lobby.getSpawnLocation());
+            p.teleport(settings.getLobbySpawn(lobby));
             p.setFallDistance(0);
         }
     }
@@ -161,6 +167,10 @@ public final class LobbyListener implements Listener {
      * 自动分配逻辑
      * ======================================================================================== */
 
+    /**
+     * 玩家入场时的单人分配：仅在大厅/倒计时阶段生效；旁观者保持不变；
+     * 关闭自动分配时置为大厅身份，否则按 {@link PlayerRoleManager#pickBalancedRole()} 均衡入队。
+     */
     public void assignOnJoin(UUID playerId) {
         if (playerId == null) return;
 
@@ -186,10 +196,12 @@ public final class LobbyListener implements Listener {
         playerRoleManager.setRole(p, balanced);
     }
 
+    /** 对大厅内所有未入队玩家批量执行均衡分配（旁观者除外），完成后刷新记分板并触发开局判定。 */
     public void autoAssignAllLobbyPlayers() {
         if (gameManager.getState() != GameState.LOBBY) return;
 
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        java.util.Collection<? extends Player> online = Bukkit.getOnlinePlayers();
+        for (Player p : online) {
             UUID id = p.getUniqueId();
             PlayerRole cur = playerRoleManager.getRole(id);
 
@@ -211,7 +223,7 @@ public final class LobbyListener implements Listener {
         playerRoleManager.refreshBoard();
 
         gameManager.onTeamsChanged();
-        gameManager.onOnlineCountChanged(Bukkit.getOnlinePlayers().size());
+        gameManager.onOnlineCountChanged(online.size());
     }
 
     @EventHandler

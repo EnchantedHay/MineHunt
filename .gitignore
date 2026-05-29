@@ -1,2 +1,17 @@
-# 项目排除路径
+# Build output
 /target/
+/build/
+/.gradle/
+
+# IDE
+/.idea/
+/.vscode/
+*.iml
+
+# OS files
+.DS_Store
+**/.DS_Store
+
+# Claude Code
+/CLAUDE.md
+/memory/

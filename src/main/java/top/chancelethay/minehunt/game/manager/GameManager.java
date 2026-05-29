@@ -37,7 +37,7 @@ public final class GameManager {
     private final TrackingListener trackingListener;
     private PlayerRoleManager playerRoleManager;
 
-    private GameState state = GameState.LOBBY;
+    private volatile GameState state = GameState.LOBBY;
     private boolean rolesLocked = false;
     private boolean ending = false;
 
@@ -104,7 +104,10 @@ public final class GameManager {
      * =========================================================================================================== */
 
     /**
-     * 尝试启动倒计时流程。
+     * 尝试进入开局倒计时。
+     *
+     * <p>需当前为 {@code LOBBY}、世界未在重置、且满足 {@link #canStartNow()}。倒计时期间每秒检查一次开局条件，
+     * 条件不再满足则取消并回到 {@code LOBBY}；倒计时归零后调用 {@link #doBeginRunning}。
      */
     public void start() {
         if (state != GameState.LOBBY) {
@@ -263,10 +266,18 @@ public final class GameManager {
      * 游戏流程控制：结束
      * =========================================================================================================== */
 
+    /** {@link #tryEnd(WinReason, Location)} 的便捷重载，不带上下文位置。 */
     public void tryEnd(WinReason reason) {
         tryEnd(reason, null);
     }
 
+    /**
+     * 幂等的结束触发器：仅在 {@code RUNNING}/{@code COUNTDOWN} 阶段有效，
+     * 通过 {@code ending} 标志保证一局只会真正结束一次，随后切回主线程执行 {@link #end}。
+     *
+     * @param reason     结束原因（决定获胜方与文案）
+     * @param contextLoc 触发结束时的相关位置（如猎人获胜时最后一名逃亡者的死亡点），用于赛后旁观视角，可为 {@code null}
+     */
     public void tryEnd(WinReason reason, Location contextLoc) {
         GameState st = this.state;
         if (st != GameState.RUNNING && st != GameState.COUNTDOWN) return;
@@ -380,6 +391,9 @@ public final class GameManager {
         }
 
         tasks.later(() -> {
+            // 赛后旁观阶段结束：玩家被送回大厅，但下一局地图尚未就绪，进入 RESETTING 阶段。
+            state = GameState.RESETTING;
+
             World lobbyWorld = Bukkit.getWorld(settings.lobbyWorld);
 
             Queue<Player> queue = new LinkedList<>(Bukkit.getOnlinePlayers());
@@ -395,7 +409,7 @@ public final class GameManager {
                             playerRoleManager.setRole(p, PlayerRole.LOBBY, false);
 
                             if (lobbyWorld != null && p.getWorld() != lobbyWorld) {
-                                p.teleport(lobbyWorld.getSpawnLocation());
+                                p.teleport(settings.getLobbySpawn(lobbyWorld));
                             }
                             p.setGameMode(GameMode.ADVENTURE);
 
@@ -413,6 +427,7 @@ public final class GameManager {
         }, delaySec * 20L);
     }
 
+    /** 下一局世界就绪后的收尾：状态归位到 {@code LOBBY}、清理本局数据、重新分配大厅玩家并重新武装自动开局。 */
     private void onWorldResetDone() {
         state = GameState.LOBBY;
         rolesLocked = false;
@@ -508,6 +523,7 @@ public final class GameManager {
         }
     }
 
+    /** 当前是否满足开局条件：世界未在重置/预生成、在线人数达标、且猎人与逃亡者两边都至少有一人存活。 */
     private boolean canStartNow() {
         if (gameWorldManager != null) {
             if (gameWorldManager.isResetting()) return false;
@@ -524,6 +540,7 @@ public final class GameManager {
         return hunterCount > 0 && runnerCount > 0;
     }
 
+    /** 是否允许中途加入：仅在对局进行中、且开局未超过 30 分钟（1800000ms）时允许。 */
     public boolean isLateJoinAllowed() {
         if (state != GameState.RUNNING) return false;
         return (System.currentTimeMillis() - roundStartMillis) < 1800000L;

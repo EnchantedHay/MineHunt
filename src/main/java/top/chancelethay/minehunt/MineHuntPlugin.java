@@ -45,6 +45,10 @@ public final class MineHuntPlugin extends JavaPlugin {
     private PlayerLifecycleListener playerLifecycleListener;
     private MiscListener miscListener;
 
+    /**
+     * 插件启用入口：完成全部装配，启动追踪任务，并在存在 PlaceholderAPI 时注册扩展。
+     * 装配过程中的任何异常都会被捕获并记录，避免半初始化状态污染服务器。
+     */
     @Override
     public void onEnable() {
         try {
@@ -63,6 +67,10 @@ public final class MineHuntPlugin extends JavaPlugin {
         }
     }
 
+    /**
+     * 插件停用入口：逐一停止各服务并持久化统计数据。
+     * 每个清理步骤独立 try/catch，确保单个组件出错不影响其余组件的关闭。
+     */
     @Override
     public void onDisable() {
         if (trackingListener != null) {
@@ -83,6 +91,13 @@ public final class MineHuntPlugin extends JavaPlugin {
         getLogger().info("MineHunt disabled.");
     }
 
+    /**
+     * 分步装配所有模块。
+     *
+     * <p>{@code GameManager} 与 {@code PlayerRoleManager} 互相依赖，故先用 {@code null} 占位
+     * 构造，再通过 setter 完成相互注入（步骤 5）。请勿随意调整此处的装配顺序——
+     * 后续步骤依赖前序步骤已完成实例化。
+     */
     private void loadAll() {
         final Logger log = getLogger();
 
@@ -180,6 +195,7 @@ public final class MineHuntPlugin extends JavaPlugin {
         log.info("MineHunt: loadAll completed.");
     }
 
+    /** 注册 {@code /minehunt} 指令的执行器与 Tab 补全（二者均由 {@link MineHuntCommand} 提供）。 */
     private void registerCommands() {
         PluginCommand cmd = getCommand("minehunt");
         if (cmd == null) {
@@ -190,6 +206,7 @@ public final class MineHuntPlugin extends JavaPlugin {
         this.commandGuard = new CommandGuard(msg, gameManager, worldManager);
 
         this.mineHuntCommand = new MineHuntCommand(
+                this,
                 msg,
                 settings,
                 gameManager,
@@ -201,6 +218,7 @@ public final class MineHuntPlugin extends JavaPlugin {
         cmd.setTabCompleter(this.mineHuntCommand);
     }
 
+    /** 向 Bukkit 注册全部事件监听器。 */
     private void registerListeners() {
         PluginManager pm = getServer().getPluginManager();
 

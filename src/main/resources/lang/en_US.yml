@@ -19,9 +19,10 @@ cmd:
     on: "&aRoles are now locked."
     off: "&aRoles are now unlocked."
   setlobby:
-    usage: "&eUsage: /minehunt setlobby <worldName>"
+    usage: "&eUsage: /minehunt setlobby"
     no_world: "&cWorld not found: &f{0}"
-    ok: "&aLobby world temporarily set to &b{0}&7."
+    must_in_lobby: "&cPlease stand in lobby world &f{0} &cbefore setting lobby spawn."
+    ok: "&aLobby spawn saved: &b{0} &7(&f{1}&7, &f{2}&7, &f{3}&7)"
   goto:
     usage: "&eUsage: /minehunt goto <lobby|game|nether|end|world>"
     no_world: "&cWorld not found: &f{0}"
@@ -34,7 +35,7 @@ cmd:
     status: "&e{0} &7- Show current status"
     join: "&e{0} &7- Join a team or become spectator"
     lock: "&e{0} &7- Lock or unlock roles"
-    lobby: "&e{0} &7- Set temporary lobby world"
+    lobby: "&e{0} &7- Set current location as lobby spawn"
     goto: "&e{0} &7- Teleport to a specific world"
     wait: "&e{0} &7- Extend countdown for 90 seconds"
   wait:

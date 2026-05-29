@@ -1,5 +1,12 @@
 lobby:
   world: "world"
+  spawn:
+    enabled: false
+    x: 0.5
+    y: 64.0
+    z: 0.5
+    fixedYaw: 0.0
+    fixedPitch: 0.0
 
 game:
   world: "minehunt_game"

@@ -47,6 +47,8 @@ public final class BoardListener implements Listener {
     private Team teamLobby;
 
     private final Set<String> lastSidebarLines = new HashSet<>();
+    private volatile boolean sidebarDirty = false;
+    private org.bukkit.scheduler.BukkitTask sidebarTickTask;
 
     // 缓存常量
     private static final ChatColor[] COLORS = ChatColor.values();
@@ -96,14 +98,30 @@ public final class BoardListener implements Listener {
         teamLobby  = ensureTeam(board, TEAM_LOBBY,  NamedTextColor.YELLOW);
 
         rebuildSidebarLines();
+
+        sidebarTickTask = tasks.repeat(() -> {
+            if (sidebarDirty) {
+                sidebarDirty = false;
+                rebuildSidebarLines();
+            }
+        }, 20L, 20L);
     }
 
     public void disable() {
+        if (sidebarTickTask != null) {
+            try { tasks.cancel(sidebarTickTask); } catch (Throwable ignored) {}
+            sidebarTickTask = null;
+        }
         if (sidebarObj != null) {
             try { sidebarObj.unregister(); } catch (Throwable ignored) {}
         }
     }
 
+    public void markDirty() {
+        sidebarDirty = true;
+    }
+
+    /** 自定义聊天渲染：在玩家名前加上其阵营颜色。当配置启用外部聊天插件（{@code useExternalChat}）时跳过。 */
     @EventHandler
     public void onAsyncChat(AsyncChatEvent e) {
         if (settings.useExternalChat) return;
@@ -137,7 +155,7 @@ public final class BoardListener implements Listener {
                 if (!newT.getEntries().contains(name)) {
                     newT.addEntry(name);
                     if (updateSidebar) {
-                        rebuildSidebarLines();
+                        markDirty();
                     }
                 }
             } catch (Throwable ignored) {}
@@ -191,6 +209,10 @@ public final class BoardListener implements Listener {
         };
     }
 
+    /**
+     * 重建侧边栏全部行：标题、状态、提示、猎人/速通名单（超出 {@link #LIST_LIMIT} 折叠为“等...”）与观战人数。
+     * 通过对比 {@code lastSidebarLines} 做增量更新——移除消失的旧行、写入新行，避免整屏闪烁。
+     */
     public void rebuildSidebarLines() {
         if (board == null || sidebarObj == null) return;
         if (playerRoleManager == null) return;
@@ -277,6 +299,7 @@ public final class BoardListener implements Listener {
             case COUNTDOWN -> ChatColor.GOLD + "状态: 倒计时";
             case RUNNING   -> ChatColor.RED + "状态: 进行中";
             case ENDED     -> ChatColor.LIGHT_PURPLE + "状态: 结算";
+            case RESETTING -> ChatColor.AQUA + "状态: 重置中";
             default        -> ChatColor.GRAY + "状态: ???";
         };
     }
@@ -286,9 +309,11 @@ public final class BoardListener implements Listener {
         else if (st == GameState.COUNTDOWN) return ChatColor.WHITE + "准备开始...";
         else if (st == GameState.LOBBY) return ChatColor.WHITE + "等待玩家...";
         else if (st == GameState.ENDED) return ChatColor.WHITE + "赛后参观中";
+        else if (st == GameState.RESETTING) return ChatColor.WHITE + "地图重置中...";
         return "";
     }
 
+    /** 解析玩家名应显示的颜色：游戏中按阵营着色（猎人红/速通绿/观战灰/大厅黄），结算阶段参赛者白、未参赛灰。 */
     public NamedTextColor resolvePlayerColor(UUID id) {
         if (playerRoleManager == null) return NamedTextColor.WHITE;
         GameState st = gameManager.getState();
@@ -307,6 +332,10 @@ public final class BoardListener implements Listener {
         return NamedTextColor.WHITE;
     }
 
+    /**
+     * 为侧边栏行追加一个不可见的颜色码后缀作为“去重盐”。
+     * 记分板要求每个条目文本唯一，借此让内容相同的多行（如多个空行）也能并存。
+     */
     private String makeUnique(String base, int salt) {
         return base + COLORS[salt % COLORS.length];
     }

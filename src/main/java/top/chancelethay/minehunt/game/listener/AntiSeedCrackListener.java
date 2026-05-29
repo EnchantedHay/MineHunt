@@ -21,11 +21,29 @@ import java.lang.reflect.Modifier;
 import java.security.SecureRandom;
 import java.util.*;
 
+/**
+ * 防种子破解监听器。
+ *
+ * <p>原版中结构（要塞、村庄等）的生成位置由世界种子加上一个固定的“盐值”（salt）决定，
+ * 玩家一旦通过若干结构坐标反推出种子，就能预知全图结构与地形，使追猎失去意义。
+ *
+ * <p>本监听器在 {@code minehunt_} 开头的世界初始化时（{@link WorldInitEvent}），
+ * 通过 NMS 反射遍历区块生成器持有的 {@link StructureSet} 列表，为
+ * {@link RandomSpreadStructurePlacement} 类结构替换为使用随机盐值的副本，从而打断种子推算。
+ *
+ * <p>注意：要塞（{@link ConcentricRingsStructurePlacement}）会被刻意跳过，以免破坏末影龙流程所需的可达性。
+ * 该实现强依赖 NMS 内部字段，Minecraft 版本升级时可能需要适配。
+ */
 public class AntiSeedCrackListener implements Listener {
 
     private final SecureRandom secureRandom = new SecureRandom();
+    /** 反射遍历对象图的最大深度，避免无谓的深层递归。 */
     private static final int MAX_SEARCH_DEPTH = 3;
 
+    // 缓存类的字段列表，避免每次调用都遍历继承链
+    private static final Map<Class<?>, List<Field>> FIELD_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 世界初始化时入口：仅处理本插件的游戏世界，定位区块生成器并随机化其结构盐值。 */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onWorldInit(WorldInitEvent e) {
         World world = e.getWorld();
@@ -46,6 +64,7 @@ public class AntiSeedCrackListener implements Listener {
         }
     }
 
+    /** 在对象图中有界深度优先地查找 {@code List<StructureSet>} 字段并就地替换；通过 {@code visited} 防止环引用。 */
     private void recursiveInject(Object target, int depth, Set<Object> visited) {
         if (target == null || depth > MAX_SEARCH_DEPTH) return;
 
@@ -96,6 +115,7 @@ public class AntiSeedCrackListener implements Listener {
         } catch (Exception ignored) {}
     }
 
+    /** 复制一个 {@link StructureSet}，将其放置策略换成随机盐值版本；要塞（同心环）保持原样。 */
     private StructureSet createHackedStructureSet(StructureSet original) {
         try {
             if (original.placement() instanceof ConcentricRingsStructurePlacement) {
@@ -123,6 +143,7 @@ public class AntiSeedCrackListener implements Listener {
         return original;
     }
 
+    /** 反射定位 {@code ServerChunkCache} 中的 ChunkMap 字段（结构集合的持有者）。 */
     private Object findChunkMap(ServerChunkCache cache) {
         for (Field f : getAllFields(cache.getClass())) {
             if (f.getType().getName().contains("ChunkMap")) {
@@ -132,15 +153,22 @@ public class AntiSeedCrackListener implements Listener {
         return null;
     }
     private List<Field> getAllFields(Class<?> clazz) {
-        List<Field> fields = new ArrayList<>();
-        while (clazz != null && clazz != Object.class) { Collections.addAll(fields, clazz.getDeclaredFields()); clazz = clazz.getSuperclass(); }
-        return fields;
+        return FIELD_CACHE.computeIfAbsent(clazz, c -> {
+            List<Field> fields = new ArrayList<>();
+            Class<?> cur = c;
+            while (cur != null && cur != Object.class) {
+                Collections.addAll(fields, cur.getDeclaredFields());
+                cur = cur.getSuperclass();
+            }
+            return fields;
+        });
     }
     private boolean isStructureSetList(List<?> list) {
         Object first = list.get(0);
         if (first instanceof Holder<?> h && h.value() instanceof StructureSet) return true;
         return first instanceof StructureSet;
     }
+    /** 反射读取私有字段的小工具。 */
     private static class ReflectUtils {
         @SuppressWarnings("unchecked")
         public static <T> T getPrivateField(Object instance, Class<?> declaredClass, String fieldName) throws Exception {

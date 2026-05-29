@@ -39,6 +39,12 @@ public final class MessageService {
         reload(prefix, locale);
     }
 
+    /**
+     * 重新加载消息表。
+     *
+     * <p>加载目标语言后，会额外加载一份回退语言（目标为 {@code zh_CN} 时回退 {@code en_US}，
+     * 否则回退 {@code zh_CN}），缺失的键将自动从回退表中查找。
+     */
     public void reload(String newPrefix, String newLocale) {
         if (newPrefix != null) this.prefix = color(newPrefix);
         if (newLocale != null) this.locale = newLocale;
@@ -90,6 +96,11 @@ public final class MessageService {
         to.sendActionBar(LEGACY_SERIALIZER.deserialize(legacyMsg));
     }
 
+    /**
+     * 按点路径键翻译并格式化文案（如 {@code "game.begun"}），使用 {@code {0}}、{@code {1}} 占位符。
+     *
+     * @return 翻译后的文本；若键缺失则原样返回该键名以便排查。
+     */
     public String tr(String key, Object... args) {
         String raw = getString(key);
         if (raw == null) return key;

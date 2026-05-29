@@ -13,6 +13,13 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 玩家统计数据服务。
+ *
+ * <p>在内存中缓存每位玩家的对局数、胜场（含分阵营胜场）、击杀数与最近若干场比赛记录，
+ * 并以异步快照方式持久化到 {@code plugins/MineHunt/stats.yml}。
+ * 在每局结束（{@link #recordRoundEnd}）后与插件停用时落盘。
+ */
 public final class StatsService {
     private final Plugin plugin;
     private final Tasks tasks;
@@ -38,6 +45,7 @@ public final class StatsService {
         return cache.computeIfAbsent(id, k -> new PlayerStats());
     }
 
+    /** 一局结束时为每位参赛者（逃亡者/猎人）追加一条对局记录并据胜负原因累加胜场，随后异步落盘。 */
     public void recordRoundEnd(Map<UUID, PlayerRole> roles, WinReason reason) {
         if (roles == null || roles.isEmpty()) return;
         Winner winner = Winner.fromReason(reason);
@@ -54,15 +62,16 @@ public final class StatsService {
         saveAsync();
     }
 
+    /** 记录一次有效击杀：仅统计跨阵营击杀（逃亡者杀猎人 / 猎人杀逃亡者）。 */
     public void recordKill(UUID killerId, PlayerRole killerRole, PlayerRole victimRole) {
         if (killerId == null) return;
         if (killerRole == null || victimRole == null) return;
         if (killerRole == PlayerRole.RUNNER && victimRole == PlayerRole.HUNTER) {
             PlayerStats stats = getStats(killerId);
-            stats.runnerKills++;
+            stats.addRunnerKill();
         } else if (killerRole == PlayerRole.HUNTER && victimRole == PlayerRole.RUNNER) {
             PlayerStats stats = getStats(killerId);
-            stats.hunterKills++;
+            stats.addHunterKill();
         }
     }
 
@@ -94,10 +103,22 @@ public final class StatsService {
     }
 
     public void save() {
-        FileConfiguration cfg = new YamlConfiguration();
+        writeSnapshot(buildSnapshot());
+    }
+
+    private Map<UUID, PlayerStatsSnapshot> buildSnapshot() {
+        Map<UUID, PlayerStatsSnapshot> snapshot = new HashMap<>(cache.size());
         for (Map.Entry<UUID, PlayerStats> entry : cache.entrySet()) {
+            snapshot.put(entry.getKey(), entry.getValue().snapshot());
+        }
+        return snapshot;
+    }
+
+    private void writeSnapshot(Map<UUID, PlayerStatsSnapshot> snapshot) {
+        FileConfiguration cfg = new YamlConfiguration();
+        for (Map.Entry<UUID, PlayerStatsSnapshot> entry : snapshot.entrySet()) {
             String key = entry.getKey().toString();
-            PlayerStats stats = entry.getValue();
+            PlayerStatsSnapshot stats = entry.getValue();
             cfg.set(key + ".wins", stats.wins);
             cfg.set(key + ".games", stats.games);
             cfg.set(key + ".runnerWins", stats.runnerWins);
@@ -122,8 +143,12 @@ public final class StatsService {
         }
     }
 
+    /** 在主线程拍下当前数据快照，再切到异步线程写盘，避免阻塞主线程的文件 I/O。 */
     public void saveAsync() {
-        tasks.async(this::save);
+        tasks.async(() -> {
+            Map<UUID, PlayerStatsSnapshot> snapshot = buildSnapshot();
+            writeSnapshot(snapshot);
+        });
     }
 
     private static long toLong(Object obj) {
@@ -154,6 +179,7 @@ public final class StatsService {
         }
     }
 
+    /** 单个玩家的可变统计数据（线程安全，方法均同步）。 */
     public static final class PlayerStats {
         private int wins;
         private int games;
@@ -163,15 +189,15 @@ public final class StatsService {
         private int hunterKills;
         private final Deque<MatchRecord> recent = new ArrayDeque<>();
 
-        public int getWins() { return wins; }
-        public int getGames() { return games; }
-        public int getRunnerWins() { return runnerWins; }
-        public int getHunterWins() { return hunterWins; }
-        public int getRunnerKills() { return runnerKills; }
-        public int getHunterKills() { return hunterKills; }
-        public Deque<MatchRecord> getRecent() { return recent; }
+        public synchronized int getWins() { return wins; }
+        public synchronized int getGames() { return games; }
+        public synchronized int getRunnerWins() { return runnerWins; }
+        public synchronized int getHunterWins() { return hunterWins; }
+        public synchronized int getRunnerKills() { return runnerKills; }
+        public synchronized int getHunterKills() { return hunterKills; }
+        public synchronized Deque<MatchRecord> getRecent() { return new ArrayDeque<>(recent); }
 
-        private void addMatch(MatchRecord record, int limit) {
+        private synchronized void addMatch(MatchRecord record, int limit) {
             games++;
             if (record.result == MatchResult.WIN) {
                 wins++;
@@ -186,8 +212,29 @@ public final class StatsService {
                 recent.removeLast();
             }
         }
+
+        private synchronized void addRunnerKill() {
+            runnerKills++;
+        }
+
+        private synchronized void addHunterKill() {
+            hunterKills++;
+        }
+
+        private synchronized PlayerStatsSnapshot snapshot() {
+            return new PlayerStatsSnapshot(
+                    wins,
+                    games,
+                    runnerWins,
+                    hunterWins,
+                    runnerKills,
+                    hunterKills,
+                    new ArrayList<>(recent)
+            );
+        }
     }
 
+    /** 一条不可变的对局历史记录：时间、所属阵营、胜负结果与结束原因。 */
     public static final class MatchRecord {
         public final long timeMillis;
         public final PlayerRole role;
@@ -208,6 +255,28 @@ public final class StatsService {
         UNKNOWN
     }
 
+    /** {@link PlayerStats} 的不可变快照，用于在异步线程安全地写盘。 */
+    private static final class PlayerStatsSnapshot {
+        private final int wins;
+        private final int games;
+        private final int runnerWins;
+        private final int hunterWins;
+        private final int runnerKills;
+        private final int hunterKills;
+        private final List<MatchRecord> recent;
+
+        private PlayerStatsSnapshot(int wins, int games, int runnerWins, int hunterWins, int runnerKills, int hunterKills, List<MatchRecord> recent) {
+            this.wins = wins;
+            this.games = games;
+            this.runnerWins = runnerWins;
+            this.hunterWins = hunterWins;
+            this.runnerKills = runnerKills;
+            this.hunterKills = hunterKills;
+            this.recent = recent;
+        }
+    }
+
+    /** 由 {@link WinReason} 解析出的获胜阵营；{@code isKnown} 为假表示无明确胜方（如管理员强制结束）。 */
     private static final class Winner {
         private final PlayerRole role;
         private final boolean isKnown;

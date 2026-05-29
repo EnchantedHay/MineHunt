@@ -8,6 +8,17 @@ import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.manager.GameManager;
 import top.chancelethay.minehunt.game.manager.PlayerRoleManager;
 
+/**
+ * PlaceholderAPI 扩展，对外暴露 MineHunt 的占位符。
+ *
+ * <p>仅当服务器安装了 PlaceholderAPI 时由 {@code MineHuntPlugin} 注册。提供的占位符：
+ * <ul>
+ *   <li>{@code %minehunt_color%} —— 当前角色对应的传统颜色代码（如 {@code &c}）</li>
+ *   <li>{@code %minehunt_color_mini%} —— 当前角色对应的 MiniMessage 颜色标签（如 {@code <red>}）</li>
+ *   <li>{@code %minehunt_role%} —— 当前角色名（HUNTER/RUNNER/...）</li>
+ *   <li>{@code %minehunt_is_participant%} —— 是否参赛（true/false）</li>
+ * </ul>
+ */
 public class MineHuntPapiExpansion extends PlaceholderExpansion {
 
     private final GameManager gameManager;
@@ -40,7 +51,7 @@ public class MineHuntPapiExpansion extends PlaceholderExpansion {
 
     @Override
     public String onPlaceholderRequest(Player player, @NotNull String params) {
-        if (player == null) return "";
+        if (player == null || gameManager == null || roleManager == null) return "";
 
         // %minehunt_color% : 返回当前角色的颜色代码 (&c, &a 等)
         if (params.equalsIgnoreCase("color")) {
@@ -54,7 +65,8 @@ public class MineHuntPapiExpansion extends PlaceholderExpansion {
 
         // %minehunt_role% : 返回角色名称 (Hunter, Runner...)
         if (params.equalsIgnoreCase("role")) {
-            return roleManager.getRole(player.getUniqueId()).name();
+            PlayerRole role = roleManager.getRole(player.getUniqueId());
+            return role != null ? role.name() : PlayerRole.LOBBY.name();
         }
 
         // %minehunt_is_participant% : 是否参赛 (true/false)
@@ -68,6 +80,7 @@ public class MineHuntPapiExpansion extends PlaceholderExpansion {
     private String getPlayerColorCode(Player p, boolean mini) {
         GameState st = gameManager.getState();
         PlayerRole role = roleManager.getRole(p.getUniqueId());
+        if (role == null) role = PlayerRole.LOBBY;
         boolean participated = (role != PlayerRole.LOBBY);
 
         if (st == GameState.RUNNING || st == GameState.COUNTDOWN || st == GameState.LOBBY) {

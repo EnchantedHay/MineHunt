@@ -19,9 +19,10 @@ cmd:
     on: "&a队伍已锁定。"
     off: "&a队伍已解锁。"
   setlobby:
-    usage: "&e用法: /minehunt setlobby <世界名>"
+    usage: "&e用法: /minehunt setlobby"
     no_world: "&c未找到世界：&f{0}"
-    ok: "&a大厅世界已临时设为 &b{0}&7。"
+    must_in_lobby: "&c请先进入大厅世界 &f{0} &c再设置大厅初始位置。"
+    ok: "&a大厅初始位置已保存：&b{0} &7(&f{1}&7, &f{2}&7, &f{3}&7)"
   goto:
     usage: "&e用法: /minehunt goto <lobby|game|nether|end|world>"
     no_world: "&c未找到世界：&f{0}"
@@ -34,7 +35,7 @@ cmd:
     status: "&e{0} &7- 查看当前状态"
     join: "&e{0} &7- 加入队伍或旁观"
     lock: "&e{0} &7- 锁定或解锁队伍"
-    lobby: "&e{0} &7- 设置临时大厅世界"
+    lobby: "&e{0} &7- 将当前位置设为大厅初始位置"
     goto: "&e{0} &7- 传送至指定世界"
     wait: "&e{0} &7- 延长倒计时90秒"
   wait:

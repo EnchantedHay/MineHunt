@@ -52,7 +52,7 @@ public final class MiscListener implements Listener {
         this.playerRoleManager = playerRoleManager;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onAdvancement(PlayerAdvancementDoneEvent e) {
         if (gameManager.getState() != GameState.RUNNING) return;
 

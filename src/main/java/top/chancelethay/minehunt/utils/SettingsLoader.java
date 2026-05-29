@@ -3,7 +3,11 @@ package top.chancelethay.minehunt.utils;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
-/** 从 utils.yml 读入 Settings。 */
+/**
+ * 配置加载器：从 {@code config.yml} 读取全部参数并构造不可变的 {@link Settings} 快照。
+ *
+ * <p>每次需要热重载配置时重新调用 {@link #load(JavaPlugin)} 即可得到新的快照对象。
+ */
 public final class SettingsLoader {
     public static Settings load(JavaPlugin plugin) {
         plugin.saveDefaultConfig();
@@ -23,6 +27,12 @@ public final class SettingsLoader {
                 c.getInt("auto.minPlayers", 2),
                 c.getInt("auto.countdownSeconds", 10),
                 c.getBoolean("auto.assignOnJoin", true),
+                c.getBoolean("lobby.spawn.enabled", false),
+                c.getDouble("lobby.spawn.x", 0.5),
+                c.getDouble("lobby.spawn.y", 64.0),
+                c.getDouble("lobby.spawn.z", 0.5),
+                (float) c.getDouble("lobby.spawn.fixedYaw", 0.0),
+                (float) c.getDouble("lobby.spawn.fixedPitch", 0.0),
 
                 // 消息 / 多语言
                 c.getString("messages.prefix", "&7[&aMineHunt&7]&r "),

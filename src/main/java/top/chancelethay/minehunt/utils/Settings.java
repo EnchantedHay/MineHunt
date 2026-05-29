@@ -1,9 +1,13 @@
 package top.chancelethay.minehunt.utils;
 
+import org.bukkit.Location;
+import org.bukkit.World;
+
 /**
- * Settings
- * 插件配置的不可变快照对象。
- * 包含所有从 utils.yml 读取的游戏参数。
+ * 插件配置的不可变快照对象，包含所有从 {@code config.yml} 读取的游戏参数。
+ *
+ * <p>由 {@link SettingsLoader} 一次性构造；热重载时整体替换为新实例，
+ * 而非就地修改字段，因此各字段均为 {@code final}。
  */
 public final class Settings {
     // 基础世界设置
@@ -19,6 +23,12 @@ public final class Settings {
     public final int autoStartMinPlayers;
     public final int autoStartCountdownSec;
     public final boolean autoAssignOnJoin;
+    public final boolean lobbySpawnEnabled;
+    public final double lobbySpawnX;
+    public final double lobbySpawnY;
+    public final double lobbySpawnZ;
+    public final float lobbyFixedYaw;
+    public final float lobbyFixedPitch;
 
     // 消息与本地化
     public final String messagesPrefix;
@@ -50,6 +60,12 @@ public final class Settings {
             int autoStartMinPlayers,
             int autoStartCountdownSec,
             boolean autoAssignOnJoin,
+            boolean lobbySpawnEnabled,
+            double lobbySpawnX,
+            double lobbySpawnY,
+            double lobbySpawnZ,
+            float lobbyFixedYaw,
+            float lobbyFixedPitch,
             String messagesPrefix,
             String localeTag,
             int runnerRingRadius,
@@ -73,6 +89,12 @@ public final class Settings {
         this.autoStartMinPlayers = autoStartMinPlayers;
         this.autoStartCountdownSec = autoStartCountdownSec;
         this.autoAssignOnJoin = autoAssignOnJoin;
+        this.lobbySpawnEnabled = lobbySpawnEnabled;
+        this.lobbySpawnX = lobbySpawnX;
+        this.lobbySpawnY = lobbySpawnY;
+        this.lobbySpawnZ = lobbySpawnZ;
+        this.lobbyFixedYaw = lobbyFixedYaw;
+        this.lobbyFixedPitch = lobbyFixedPitch;
 
         this.messagesPrefix = messagesPrefix;
         this.localeTag = (localeTag == null || localeTag.isBlank()) ? "zh_CN" : localeTag;
@@ -88,5 +110,24 @@ public final class Settings {
         this.useExternalTab = useExternalTab;
 
         this.disablePrivateChat = disablePrivateChat;
+    }
+
+    /**
+     * 计算大厅出生点。
+     *
+     * <p>当 {@code lobbySpawnEnabled} 为真时使用配置中的固定坐标，否则回退到大厅世界自带的出生点；
+     * 两种情况都会套用配置的固定朝向（yaw/pitch）。
+     *
+     * @param lobby 大厅世界，可为 {@code null}（此时返回 {@code null}）
+     * @return 带朝向的出生点位置，或 {@code null}
+     */
+    public Location getLobbySpawn(World lobby) {
+        if (lobby == null) return null;
+        Location loc = lobbySpawnEnabled
+                ? new Location(lobby, lobbySpawnX, lobbySpawnY, lobbySpawnZ)
+                : lobby.getSpawnLocation().clone();
+        loc.setYaw(lobbyFixedYaw);
+        loc.setPitch(lobbyFixedPitch);
+        return loc;
     }
 }

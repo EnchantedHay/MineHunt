@@ -14,12 +14,18 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
@@ -47,6 +53,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 大厅图形菜单服务。
+ *
+ * <p>基于 {@code menu.yml}（由 {@link MenuConfig} 加载）以数据驱动的方式构建可配置的 GUI：
+ * 主菜单 / 加入菜单 / 队伍菜单（见 {@link MenuType}），按钮的材质、名称、lore、槽位与点击动作均来自配置，
+ * 文本支持 {@code lang:} 前缀引用语言文件与 {@code {占位符}} 替换（见 {@link #placeholderMap}）。
+ *
+ * <p>同时负责发放/回收大厅手持的“菜单物品”，并通过一组保护性事件处理器防止该物品被丢弃、移动或死亡掉落。
+ * 打开中的菜单由一个周期任务定时刷新以显示实时状态。
+ */
 public final class LobbyMenuService implements Listener {
     private final Settings settings;
     private final MessageService msg;
@@ -60,6 +76,8 @@ public final class LobbyMenuService implements Listener {
 
     private final Map<UUID, MenuSession> sessions = new HashMap<>();
     private final Map<UUID, Long> openCooldown = new HashMap<>();
+    private final Map<MenuType, Map<Integer, String>> actionSlotCache = new EnumMap<>(MenuType.class);
+    private Map<Integer, String> joinRoomSlotCache = Collections.emptyMap();
     private BukkitTask globalUpdateTask;
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -83,7 +101,7 @@ public final class LobbyMenuService implements Listener {
         this.tasks = tasks;
         this.menuConfig = new MenuConfig(plugin);
         this.menuItemKey = new NamespacedKey(plugin, "lobby_menu_item");
-        
+        rebuildActionSlotCache();
         restartGlobalUpdateTask();
     }
 
@@ -98,6 +116,7 @@ public final class LobbyMenuService implements Listener {
 
     public void reload() {
         menuConfig.reload();
+        rebuildActionSlotCache();
         restartGlobalUpdateTask();
     }
 
@@ -110,8 +129,9 @@ public final class LobbyMenuService implements Listener {
             for (Map.Entry<UUID, MenuSession> entry : sessions.entrySet()) {
                 Player p = Bukkit.getPlayer(entry.getKey());
                 if (p == null || !p.isOnline()) continue;
-                if (p.getOpenInventory() == null) continue;
-                Inventory top = p.getOpenInventory().getTopInventory();
+                org.bukkit.inventory.InventoryView openInv = p.getOpenInventory();
+                if (openInv == null) continue;
+                Inventory top = openInv.getTopInventory();
                 if (top == null || top.getHolder() == null || !(top.getHolder() instanceof MenuHolder)) continue;
                 populateMenu(top, entry.getValue().type, p);
             }
@@ -122,6 +142,7 @@ public final class LobbyMenuService implements Listener {
         openMenu(p, MenuType.MAIN);
     }
 
+    /** 向玩家手中放入“大厅菜单物品”（右键即可打开主菜单）；受 {@code menu.lobbyItem.enabled} 控制。 */
     public void giveLobbyItem(Player p) {
         FileConfiguration cfg = menuConfig.getConfig();
         if (!cfg.getBoolean("menu.lobbyItem.enabled", true)) return;
@@ -141,6 +162,10 @@ public final class LobbyMenuService implements Listener {
         }
     }
 
+    /**
+     * 打开指定类型的菜单。会校验权限与“仅限大厅打开”设置，并对非菜单内导航的打开施加冷却。
+     * 在菜单间跳转（{@code isNavigating}）时不重复计冷却。
+     */
     private void openMenu(Player p, MenuType type) {
         if (!p.hasPermission("minehunt.menu")) {
             msg.send(p, "guard.no.perm");
@@ -184,6 +209,7 @@ public final class LobbyMenuService implements Listener {
         sessions.put(p.getUniqueId(), new MenuSession(type));
     }
 
+    /** 按配置填充菜单内容：装饰物（decorations）、动作按钮（actions），以及加入菜单特有的房间项（rooms）。 */
     private void populateMenu(Inventory inv, MenuType type, Player p) {
         Map<String, String> placeholders = placeholderMap(p);
 
@@ -229,6 +255,10 @@ public final class LobbyMenuService implements Listener {
         }
     }
 
+    /**
+     * 依据配置节构建一个菜单图标：解析材质/数量/损伤值，套用名称与 lore（去斜体、替换占位符），
+     * 处理玩家头颅，并隐藏属性/附魔。{@code tagActions} 为真时写入 PDC 标记，使其可被识别为可点击的菜单项。
+     */
     private ItemStack buildItem(ConfigurationSection itemSec, Player p, Map<String, String> placeholders, boolean tagActions) {
         if (itemSec == null) return null;
         String materialName = itemSec.getString("material", "STONE");
@@ -293,6 +323,7 @@ public final class LobbyMenuService implements Listener {
         return item;
     }
 
+    /** 汇集菜单文本可用的全部占位符：游戏状态、人数、倒计时、本局时长、世界预生成进度，以及该玩家的统计数据与近战记录。 */
     private Map<String, String> placeholderMap(Player p) {
         Map<String, String> map = new HashMap<>();
         GameState state = gameManager.getState();
@@ -302,7 +333,7 @@ public final class LobbyMenuService implements Listener {
         int spectators = roleManager.countSpectators();
         int participants = runners + hunters;
 
-        boolean resetting = worldManager.isResetting();
+        boolean resetting = worldManager.isResetting() || state == GameState.RESETTING;
         boolean ending = state == GameState.ENDED && !resetting;
         boolean running = state == GameState.RUNNING;
         String stateText;
@@ -390,6 +421,7 @@ public final class LobbyMenuService implements Listener {
         return String.format(Locale.US, "%02d:%02d", m, s);
     }
 
+    /** 解析配置文本：{@code lang:<键>} 走语言文件翻译，其余按传统颜色码上色。 */
     private String resolveText(String raw) {
         if (raw == null) return null;
         if (raw.startsWith("lang:")) {
@@ -449,6 +481,9 @@ public final class LobbyMenuService implements Listener {
 
     @EventHandler
     public void onMenuItemUse(PlayerInteractEvent e) {
+        Action action = e.getAction();
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
+        if (e.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         if (e.getItem() == null) return;
         if (!isLobbyMenuItem(e.getItem())) return;
         Player p = e.getPlayer();
@@ -456,6 +491,7 @@ public final class LobbyMenuService implements Listener {
         openMain(p);
     }
 
+    /** 处理菜单内点击：始终取消默认拿取行为，按槽位查出动作并校验权限后执行（见 {@link #handleAction}）。 */
     @EventHandler
     public void onMenuClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
@@ -494,6 +530,55 @@ public final class LobbyMenuService implements Listener {
         sessions.remove(e.getPlayer().getUniqueId());
     }
 
+    // 以下 onProtect* 系列：防止大厅菜单物品被玩家移动 / 拖拽 / 丢弃 / 通过数字键交换 / 死亡掉落。
+    /** 阻止在普通背包中点击或用数字键移动大厅菜单物品（菜单 GUI 内的点击由 {@link #onMenuClick} 处理）。 */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onProtectInventoryClick(InventoryClickEvent e) {
+        Inventory top = e.getView().getTopInventory();
+        if (top != null && top.getHolder() instanceof MenuHolder) return;
+
+        if (isLobbyMenuItem(e.getCurrentItem()) || isLobbyMenuItem(e.getCursor())) {
+            e.setCancelled(true);
+            return;
+        }
+        if (e.getClick() == ClickType.NUMBER_KEY && e.getWhoClicked() instanceof Player p) {
+            int btn = e.getHotbarButton();
+            if (btn >= 0) {
+                ItemStack hotbar = p.getInventory().getItem(btn);
+                if (isLobbyMenuItem(hotbar)) {
+                    e.setCancelled(true);
+                }
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onProtectInventoryDrag(InventoryDragEvent e) {
+        if (isLobbyMenuItem(e.getOldCursor())) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onProtectDrop(PlayerDropItemEvent e) {
+        if (isLobbyMenuItem(e.getItemDrop().getItemStack())) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onProtectSwap(PlayerSwapHandItemsEvent e) {
+        if (isLobbyMenuItem(e.getMainHandItem()) || isLobbyMenuItem(e.getOffHandItem())) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onProtectDeath(PlayerDeathEvent e) {
+        e.getDrops().removeIf(this::isLobbyMenuItem);
+    }
+
+    /** 执行按钮动作：菜单跳转/关闭、加入各阵营；{@code room:<键>} 则转发到该房间配置的实际动作。 */
     private void handleAction(Player p, MenuType type, String action) {
         switch (action) {
             case "open_main" -> openMenu(p, MenuType.MAIN);
@@ -515,6 +600,10 @@ public final class LobbyMenuService implements Listener {
         playClickSound(p);
     }
 
+    /**
+     * 处理通过菜单加入阵营的请求，逻辑与 {@code /minehunt join} 保持一致：
+     * 旁观处理、锁定/中途加入校验、指定或均衡分配阵营，并刷新人数判定与大厅物品。
+     */
     private void handleJoin(Player p, PlayerRole requestedRole, boolean wantSpectator) {
         if (wantSpectator) {
             if (gameManager.getState() == GameState.RUNNING && roleManager.isParticipant(p.getUniqueId())) {
@@ -588,24 +677,53 @@ public final class LobbyMenuService implements Listener {
     }
 
     private String findAction(MenuType type, int slot) {
-        FileConfiguration cfg = menuConfig.getConfig();
-        ConfigurationSection actions = cfg.getConfigurationSection("menus." + type.key + ".actions");
-        if (actions != null) {
-            for (String actionKey : actions.getKeys(false)) {
-                int s = actions.getInt(actionKey + ".slot", -1);
-                if (s == slot) return actionKey;
-            }
+        Map<Integer, String> actionMap = actionSlotCache.get(type);
+        if (actionMap != null) {
+            String action = actionMap.get(slot);
+            if (action != null) return action;
         }
         if (type == MenuType.JOIN) {
-            ConfigurationSection rooms = cfg.getConfigurationSection("menus.join.rooms");
-            if (rooms != null) {
-                for (String roomKey : rooms.getKeys(false)) {
-                    int s = rooms.getInt(roomKey + ".slot", -1);
-                    if (s == slot) return "room:" + roomKey;
-                }
-            }
+            return joinRoomSlotCache.get(slot);
         }
         return null;
+    }
+
+    /** 预先把各菜单的「槽位 → 动作」映射缓存下来，使点击时可 O(1) 查出动作而无需遍历配置。 */
+    private void rebuildActionSlotCache() {
+        FileConfiguration cfg = menuConfig.getConfig();
+        actionSlotCache.clear();
+
+        for (MenuType type : MenuType.values()) {
+            ConfigurationSection actions = cfg.getConfigurationSection("menus." + type.key + ".actions");
+            if (actions == null) {
+                actionSlotCache.put(type, Collections.emptyMap());
+                continue;
+            }
+
+            Map<Integer, String> slotMap = new HashMap<>();
+            for (String actionKey : actions.getKeys(false)) {
+                int slot = actions.getInt(actionKey + ".slot", -1);
+                if (slot >= 0) {
+                    slotMap.put(slot, actionKey);
+                }
+            }
+            actionSlotCache.put(type, slotMap);
+        }
+
+        ConfigurationSection rooms = cfg.getConfigurationSection("menus.join.rooms");
+        if (rooms == null) {
+            joinRoomSlotCache = Collections.emptyMap();
+            return;
+        }
+
+        Map<Integer, String> roomMap = new HashMap<>();
+        for (String roomKey : rooms.getKeys(false)) {
+            int slot = rooms.getInt(roomKey + ".slot", -1);
+            if (slot >= 0) {
+                roomMap.put(slot, "room:" + roomKey);
+            }
+        }
+        joinRoomSlotCache = roomMap;
     }
 
     private void playOpenSound(Player p) {
@@ -646,6 +764,7 @@ public final class LobbyMenuService implements Listener {
         }
     }
 
+    /** 自定义 {@link InventoryHolder}：作为识别“本插件菜单”的标记，并携带其菜单类型。 */
     private static final class MenuHolder implements InventoryHolder {
         private final MenuType type;
         private Inventory inventory;
@@ -664,6 +783,7 @@ public final class LobbyMenuService implements Listener {
         }
     }
 
+    /** 菜单类型，{@code key} 对应 {@code menu.yml} 中 {@code menus.<key>} 的配置节。 */
     private enum MenuType {
         MAIN("main"),
         JOIN("join"),

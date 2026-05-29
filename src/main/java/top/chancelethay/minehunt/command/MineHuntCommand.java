@@ -1,11 +1,15 @@
 package top.chancelethay.minehunt.command;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.*;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.StringUtil;
 import top.chancelethay.minehunt.utils.Settings;
+import top.chancelethay.minehunt.utils.SettingsLoader;
 import top.chancelethay.minehunt.game.GameState;
 import top.chancelethay.minehunt.game.PlayerRole;
 import top.chancelethay.minehunt.game.WinReason;
@@ -24,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class MineHuntCommand implements CommandExecutor, TabCompleter {
 
+    private final JavaPlugin plugin;
     private final MessageService msg;
     private Settings settings;
     private final GameManager game;
@@ -40,12 +45,14 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
     private static final List<String> ONOFF = List.of("on", "off");
     private static final List<String> TARGETS_BASE = List.of("lobby", "game", "nether", "end");
 
-    public MineHuntCommand(MessageService msg,
+    public MineHuntCommand(JavaPlugin plugin,
+                           MessageService msg,
                            Settings settings,
                            GameManager game,
                            GameWorldManager worlds,
                            PlayerRoleManager playerRoleManager,
                            CommandGuard guard) {
+        this.plugin = plugin;
         this.msg = msg;
         this.settings = settings;
         this.game = game;
@@ -56,12 +63,21 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
 
     public void setSettings(Settings s) { this.settings = s; }
 
+    /**
+     * 分发 {@code /minehunt <子指令>}。玩家子指令：{@code help}、{@code join}；
+     * 管理员子指令（需 {@code minehunt.admin}）：{@code start}、{@code forcestart}、{@code end}、
+     * {@code status}、{@code lockroles}、{@code setlobby}、{@code goto}、{@code wait}。
+     * 各分支统一通过 {@link CommandGuard} 做权限 / 发送者 / 状态前置校验。
+     */
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         final String sub = (args.length == 0 ? "help" : args[0].toLowerCase(Locale.ROOT));
 
         switch (sub) {
-            case "help":
+            case "help": {
+                sendHelp(sender, label);
+                return true;
+            }
 
             case "start": {
                 if (!guard.requireAdmin(sender)) return true;
@@ -211,17 +227,34 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
 
             case "setlobby": {
                 if (!guard.requireAdmin(sender)) return true;
-                if (args.length < 2) {
+                if (!guard.requirePlayer(sender)) return true;
+                if (args.length != 1) {
                     msg.send(sender, "cmd.setlobby.usage");
                     return true;
                 }
-                String worldName = args[1];
-                World w = Bukkit.getWorld(worldName);
+
+                Player player = (Player) sender;
+                World w = player.getWorld();
                 if (w == null) {
-                    msg.send(sender, "cmd.setlobby.no_world", worldName);
+                    msg.send(sender, "cmd.setlobby.no_world", "null");
                     return true;
                 }
-                msg.send(sender, "cmd.setlobby.ok", worldName);
+                if (!w.getName().equalsIgnoreCase(settings.lobbyWorld)) {
+                    msg.send(sender, "cmd.setlobby.must_in_lobby", settings.lobbyWorld);
+                    return true;
+                }
+
+                Location loc = player.getLocation();
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("lobby.spawn.enabled", true);
+                cfg.set("lobby.spawn.x", loc.getX());
+                cfg.set("lobby.spawn.y", loc.getY());
+                cfg.set("lobby.spawn.z", loc.getZ());
+                plugin.saveConfig();
+
+                this.settings = SettingsLoader.load(plugin);
+
+                msg.send(sender, "cmd.setlobby.ok", w.getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
                 return true;
             }
 
@@ -253,7 +286,10 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
                 }
 
                 try {
-                    p.teleport(target.getSpawnLocation());
+                    Location targetLoc = "lobby".equals(which)
+                            ? settings.getLobbySpawn(target)
+                            : target.getSpawnLocation();
+                    p.teleport(targetLoc);
                     msg.send(p, "cmd.goto.ok", target.getName());
                 } catch (Throwable ex) {
                     msg.send(p, "cmd.goto.no_world", which);
@@ -287,11 +323,12 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
         msg.send(to, "cmd.help.status", "/" + label + " status");
         msg.send(to, "cmd.help.join", "/" + label + " join <runner|hunter|spectator>");
         msg.send(to, "cmd.help.lock", "/" + label + " lockroles <on|off>");
-        msg.send(to, "cmd.help.lobby", "/" + label + " setlobby <worldName>");
+        msg.send(to, "cmd.help.lobby", "/" + label + " setlobby");
         msg.send(to, "cmd.help.goto", "/" + label + " goto <lobby|game|nether|end|world>");
         msg.send(to, "cmd.help.wait", "/" + label + " wait");
     }
 
+    /** Tab 补全：第一参数按权限给出子指令列表；其余参数按各子指令补全角色 / 开关 / 世界名等。 */
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] args) {
         boolean isAdmin = sender.hasPermission("minehunt.admin");
@@ -317,16 +354,7 @@ public final class MineHuntCommand implements CommandExecutor, TabCompleter {
 
             case "setlobby":
                 if (!isAdmin) return Collections.emptyList();
-                if (args.length == 2) {
-                    for (World w : Bukkit.getWorlds()) {
-                        String name = w.getName();
-                        if (StringUtil.startsWithIgnoreCase(name, args[1])) {
-                            result.add(name);
-                        }
-                    }
-                    return result;
-                }
-                break;
+                return Collections.emptyList();
 
             case "goto":
                 if (!isAdmin) return Collections.emptyList();

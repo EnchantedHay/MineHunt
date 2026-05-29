@@ -76,6 +76,7 @@ public final class TrackingListener implements Listener {
      * 指南针物品管理
      * ------------------------------------------------------------------------ */
 
+    /** 创建一枚带 PDC 标记的“猎人追踪指南针”，并关闭其磁石追踪显示，便于后续用伪坐标驱动指向。 */
     public ItemStack newTaggedHunterCompass() {
         ItemStack it = new ItemStack(Material.COMPASS, 1);
         ItemMeta meta = it.getItemMeta();
@@ -107,6 +108,7 @@ public final class TrackingListener implements Listener {
      * 跨世界追踪逻辑
      * ------------------------------------------------------------------------ */
 
+    /** 逃亡者跨维度传送时，记录其离开维度前的最后坐标，供猎人在另一维度时仍能得到“最后已知位置”指向。 */
     @EventHandler(ignoreCancelled = true)
     public void onRunnerPortalTeleport(PlayerTeleportEvent e) {
         Player p = e.getPlayer();
@@ -148,7 +150,7 @@ public final class TrackingListener implements Listener {
      * 交互事件
      * ------------------------------------------------------------------------ */
 
-    // 监听玩家右键交互
+    /** 猎人手持追踪指南针右键：带冷却地锁定最近的逃亡者并刷新指针（见 {@link #updateCompassToNearestCandidate}）。 */
     @EventHandler
     public void onHunterRightClick(PlayerInteractEvent e) {
         Action a = e.getAction();
@@ -188,6 +190,14 @@ public final class TrackingListener implements Listener {
      * 目标搜索逻辑
      * ------------------------------------------------------------------------ */
 
+    /**
+     * 在猎人当前世界内选取最近的目标（优先同世界在线逃亡者，其次跨世界逃亡者的最后已知位置），
+     * 并把指南针指向它。
+     *
+     * <p><b>反作弊要点</b>：写入指南针的并非真实坐标，而是沿真实方向上的“伪目标”——100 格内按真实距离、
+     * 超过 100 格则随机化为 90–110 格，且抹平 Y 轴。这样猎人只能得到方向感，无法用磁石坐标精确算出逃亡者位置。
+     * 真实的远近/上下信息改以 ActionBar 文案模糊提示。
+     */
     private boolean updateCompassToNearestCandidate(Player hunter, ItemStack compassInHand) {
         World hw = hunter.getWorld();
         if (hw == null) return false;
@@ -206,12 +216,13 @@ public final class TrackingListener implements Listener {
             if (p == null || !p.isOnline()) continue;
             if (p.getWorld() != hw) continue;
 
-            double d2 = hLoc.distanceSquared(p.getLocation());
+            Location pLoc = p.getLocation();
+            double d2 = hLoc.distanceSquared(pLoc);
             if (d2 < minD2) {
                 minD2 = d2;
                 bestId = rid;
                 bestName = p.getName();
-                bestLoc = p.getLocation();
+                bestLoc = pLoc;
                 isCurrent = true;
             }
         }

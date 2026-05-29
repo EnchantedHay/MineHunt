@@ -37,6 +37,7 @@ public final class PortalLinkListener implements Listener {
         this.endName = settings.gameWorld + "_the_end";
     }
 
+    /** 玩家穿越传送门：将目的地强制改写到本插件的对应维度世界。 */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerPortal(PlayerPortalEvent e) {
         World fromWorld = e.getFrom().getWorld();
@@ -53,6 +54,7 @@ public final class PortalLinkListener implements Listener {
         e.setCanCreatePortal(true);
     }
 
+    /** 实体（如投掷的末影珍珠、被推入传送门的生物）穿越传送门时的同样改写逻辑。 */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityPortal(EntityPortalEvent e) {
         World fromWorld = e.getFrom().getWorld();
@@ -84,6 +86,10 @@ public final class PortalLinkListener implements Listener {
                 || cause == TeleportCause.END_GATEWAY;
     }
 
+    /**
+     * 根据来源维度与传送门类型计算目标维度的落点：主世界↔下界按 8:1 坐标换算并夹紧到边界内，
+     * 主世界→末地落到固定的黑曜石入口平台，末地→主世界回到出生点。
+     */
     private Target computeTarget(Location from, TeleportCause cause) {
         World overworld = Bukkit.getWorld(overworldName);
         World nether    = Bukkit.getWorld(netherName);
@@ -101,8 +107,8 @@ public final class PortalLinkListener implements Listener {
                 );
             }
             if (cause == TeleportCause.END_PORTAL || cause == TeleportCause.END_GATEWAY) {
-                ensureEndEntryPlatform(theEnd);
                 if (theEnd == null) return null;
+                ensureEndEntryPlatform(theEnd);
                 return new Target(new Location(theEnd, 100.5, 49.0, 0.5, 90f, 0f), 0, 0);
             }
             return null;
@@ -137,6 +143,7 @@ public final class PortalLinkListener implements Listener {
         return new Location(world, cx, cy, cz);
     }
 
+    /** 在末地固定坐标处铺一块 5×5 黑曜石平台并清出上方空间，保证玩家进入末地时有安全立足点。 */
     private void ensureEndEntryPlatform(World endWorld) {
         if (endWorld == null) return;
         final int cx = 100;
@@ -160,6 +167,7 @@ public final class PortalLinkListener implements Listener {
         }
     }
 
+    /** 传送计算结果：目标位置及传送门搜索/创建半径。 */
     private static final class Target {
         final Location to;
         final int searchRadius;
